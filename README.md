@@ -38,6 +38,13 @@ PowerShell example (Invoke-RestMethod):
 $body = @{ SSCC = "148102689000000010" } | ConvertTo-Json
 Invoke-RestMethod -Method Post -Uri "http://localhost:5001/api/getcamerares" -ContentType "application/json" -Body $body
 ```
+$body = @{ SSCC = "148102689000000010" } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri "https://fastapi-plum-eight.vercel.app/api/getcamerares" -ContentType "application/json" -Body $body
+
+$body = @{ SSCC = "148102689000000010"; IDPoint = "ID1"; Message = "PalletOnID"; Weight = 123.45 } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri "https://fastapi-plum-eight.vercel.app/api/setpallet" -ContentType "application/json" -Body $body
+
+https://fastapi-plum-eight.vercel.app/api/health
 
 Sample response:
 ```json
