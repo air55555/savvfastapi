@@ -24,6 +24,32 @@ Start the development server on http://0.0.0.0:5001
 uvicorn main:app --reload --port 5001
 ```
 
+PowerShell example (Invoke-RestMethod):
+```powershell
+$body = @{ SSCC = "148102689000000010"; IDPoint = "ID1"; Message = "PalletOnID"; Weight = 123.45 } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri "http://localhost:5001/api/setpallet" -ContentType "application/json" -Body $body
+```
+
+### 2) Получение результатов исследования аномалий
+- POST `/api/getcamerares`
+
+PowerShell example (Invoke-RestMethod):
+```powershell
+$body = @{ SSCC = "148102689000000010" } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri "http://localhost:5001/api/getcamerares" -ContentType "application/json" -Body $body
+```
+
+Sample response:
+```json
+{
+  "IDPoint": "ID1",
+  "SSCC": "148102689000000010",
+  "Status": "PalletResult",
+  "Probability": "98",
+  "Degree": "3",
+  "Result": "Not found"
+}
+```
 When you make changes to your project, the server will automatically reload.
 
 ## Deploying to Vercel
