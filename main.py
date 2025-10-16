@@ -8,6 +8,9 @@ app = FastAPI(
     version="1.0.0",
 )
 
+@app.get("/api/health")
+def health_check():
+    return {"status": "healthy"}
 
 @app.get("/api/data")
 def get_sample_data():
