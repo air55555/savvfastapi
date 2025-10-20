@@ -16,7 +16,8 @@ from db import (
 	fetch_set_pallet_requests,
 	fetch_set_pallet_responses,
 	fetch_get_camera_res_requests,
-	fetch_get_camera_res_responses
+	fetch_get_camera_res_responses,
+	fetch_latest_palletes_scan_by_sscc,
 )
 
 class SetPalletRequest(BaseModel):
@@ -72,14 +73,17 @@ class GetCameraResResponse(BaseModel):
 async def get_camera_res(payload: GetCameraResRequest) -> GetCameraResResponse:
 	# persist request
 	insert_get_camera_res_request(payload.SSCC)
+	# resolve result from the latest palletes_scan row for this SSCC
+	row = fetch_latest_palletes_scan_by_sscc(payload.SSCC)
+	resolved_result = row["Status"] if row else "Not found"
 	# build and persist response
 	response = GetCameraResResponse(
 		IDPoint="ID1",
 		SSCC=payload.SSCC,
 		Status="PalletResult",
-		Probability="98",
-		Degree="3",
-		Result="Not found",
+		Probability=resolved_result,
+		Degree=resolved_result,
+		Result=resolved_result,
 	)
 	insert_get_camera_res_response(
 		response.IDPoint,

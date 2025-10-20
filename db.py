@@ -56,7 +56,7 @@ def init_db() -> None:
 		)
 		conn.execute(
 			"""
-            CREATE TABLE IF NOT EXISTS palletes (
+            CREATE TABLE IF NOT EXISTS palletes_scan (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 SSCC TEXT NOT NULL,
                 Status TEXT NOT NULL,
@@ -212,6 +212,23 @@ def insert_get_camera_res_response(
 
 
 # Database viewer functions
+def fetch_latest_palletes_scan_by_sscc(sscc: str) -> Optional[dict]:
+	conn = get_connection()
+	try:
+		cur = conn.execute(
+			"""
+			SELECT id, SSCC, Status, created_at
+			FROM palletes_scan
+			WHERE SSCC = ?
+			ORDER BY id DESC
+			LIMIT 1
+			""",
+			(sscc,)
+		)
+		row = cur.fetchone()
+		return dict(row) if row else None
+	finally:
+		conn.close()
 def fetch_set_pallet_requests(limit: int = 100):
 	conn = get_connection()
 	try:

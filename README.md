@@ -92,6 +92,18 @@ PowerShell example (Invoke-RestMethod):
 $body = @{ SSCC = "148102689000000010"; IDPoint = "ID1"; Message = "PalletOnID"; Weight = 123.45 } | ConvertTo-Json
 Invoke-RestMethod -Method Post -Uri "http://localhost:5001/api/setpallet" -ContentType "application/json" -Body $body
 ```
+bad 666 result 
+curl -Method POST "http://localhost:5001/api/getcamerares" -ContentType "application/json" -Body '{"SSCC":"666"}'
+
+good result
+curl -Method POST "http://localhost:5001/api/getcamerares" -ContentType "application/json" -Body '{"SSCC":"111"}'
+
+unknown result
+curl -Method POST "http://localhost:5001/api/getcamerares" -ContentType "application/json" -Body '{"SSCC":"777"}'
+
+# insert a scan result
+python add_pallet_record.py --sscc 148102689000000010 --status Found
+
 
 ### 2) Получение результатов исследования аномалий
 - POST `/api/getcamerares`
