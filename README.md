@@ -24,6 +24,69 @@ Start the development server on http://0.0.0.0:5001
 uvicorn main:app --reload --port 5001
 ```
 
+### curl examples
+
+Health check:
+```bash
+curl -s http://localhost:5001/api/health
+```
+
+Set pallet:
+```bash
+curl -s -X POST http://localhost:5001/api/setpallet \
+  -H "Content-Type: application/json" \
+  -d '{
+    "SSCC": "148102689000000010",
+    "IDPoint": "ID1",
+    "Message": "PalletOnID",
+    "Weight": 123.45
+  }'
+```
+
+Get camera result:
+```bash
+curl -s -X POST http://localhost:5001/api/getcamerares \
+  -H "Content-Type: application/json" \
+  -d '{
+    "SSCC": "148102689000000010"
+  }'
+```
+
+View recent request logs (limit 20):
+```bash
+curl -s "http://localhost:5001/api/logs?limit=20"
+```
+
+#### One-line curl (copy/paste)
+
+Bash (Linux/macOS/Git Bash):
+```bash
+curl -s http://localhost:5001/api/health
+```
+```bash
+curl -s -X POST http://localhost:5001/api/setpallet -H "Content-Type: application/json" -d '{"SSCC":"148102689000000010","IDPoint":"ID1","Message":"PalletOnID","Weight":123.45}'
+```
+```bash
+curl -s -X POST http://localhost:5001/api/getcamerares -H "Content-Type: application/json" -d '{"SSCC":"148102689000000010"}'
+```
+```bash
+curl -s "http://localhost:5001/api/logs?limit=20"
+```
+
+PowerShell (Windows):
+```powershell
+curl -Method GET "http://localhost:5001/api/health"
+```
+```powershell
+curl -Method POST "http://localhost:5001/api/setpallet" -ContentType "application/json" -Body '{"SSCC":"148102689000000010","IDPoint":"ID1","Message":"PalletOnID","Weight":123.45}'
+```
+```powershell
+curl -Method POST "http://localhost:5001/api/getcamerares" -ContentType "application/json" -Body '{"SSCC":"148102689000000010"}'
+```
+```powershell
+curl -Method GET "http://localhost:5001/api/logs?limit=20"
+```
+
 PowerShell example (Invoke-RestMethod):
 ```powershell
 $body = @{ SSCC = "148102689000000010"; IDPoint = "ID1"; Message = "PalletOnID"; Weight = 123.45 } | ConvertTo-Json

@@ -2,6 +2,22 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from typing import Literal
+from typing import List
+from fastapi import Request
+import time
+
+from db import (
+	init_db, 
+	insert_set_pallet_request, 
+	insert_set_pallet_response, 
+	insert_get_camera_res_request, 
+	insert_get_camera_res_response, 
+	fetch_logs,
+	fetch_set_pallet_requests,
+	fetch_set_pallet_responses,
+	fetch_get_camera_res_requests,
+	fetch_get_camera_res_responses
+)
 
 class SetPalletRequest(BaseModel):
 	SSCC: str
@@ -20,13 +36,23 @@ app = FastAPI(
     version="1.0.0",
 )
 
+
+@app.on_event("startup")
+def on_startup():
+	init_db()
+
 @app.get("/api/health")
 def health_check():
     return {"status": "healthy"}
 
 @app.post("/api/setpallet", response_model=SetPalletResponse)
 def set_pallet(payload: SetPalletRequest) -> SetPalletResponse:
-	return SetPalletResponse(SSCC=payload.SSCC, Status="Ok")
+	# persist request
+	insert_set_pallet_request(payload.SSCC, payload.IDPoint, payload.Message, payload.Weight)
+	# build and persist response
+	response = SetPalletResponse(SSCC=payload.SSCC, Status="Ok")
+	insert_set_pallet_response(response.SSCC, response.Status)
+	return response
 
 
 class GetCameraResRequest(BaseModel):
@@ -41,33 +67,13 @@ class GetCameraResResponse(BaseModel):
 	Degree: str
 	Result: str
 
-@app.get("/api/data")
-def get_sample_data():
-    return {
-        "data": [
-            {"id": 1, "name": "Sample Item 1", "value": 100},
-            {"id": 2, "name": "Sample Item 2", "value": 200},
-            {"id": 3, "name": "Sample Item 3", "value": 300}
-        ],
-        "total": 3,
-        "timestamp": "2024-01-01T00:00:00Z"
-    }
-
-
-@app.get("/api/items/{item_id}")
-def get_item(item_id: int):
-    return {
-        "item": {
-            "id": item_id,
-            "name": "Sample Item " + str(item_id),
-            "value": item_id * 100
-        },
-        "timestamp": "2024-01-01T00:00:00Z"
-    }
 
 @app.post("/api/getcamerares", response_model=GetCameraResResponse)
 async def get_camera_res(payload: GetCameraResRequest) -> GetCameraResResponse:
-	return GetCameraResResponse(
+	# persist request
+	insert_get_camera_res_request(payload.SSCC)
+	# build and persist response
+	response = GetCameraResResponse(
 		IDPoint="ID1",
 		SSCC=payload.SSCC,
 		Status="PalletResult",
@@ -75,6 +81,48 @@ async def get_camera_res(payload: GetCameraResRequest) -> GetCameraResResponse:
 		Degree="3",
 		Result="Not found",
 	)
+	insert_get_camera_res_response(
+		response.IDPoint,
+		response.SSCC,
+		response.Status,
+		response.Probability,
+		response.Degree,
+		response.Result,
+	)
+	return response
+
+
+@app.middleware("http")
+async def request_logger(request: Request, call_next):
+	start = time.perf_counter()
+	response = await call_next(request)
+	duration_ms = (time.perf_counter() - start) * 1000.0
+	try:
+		from db import insert_log
+		client_ip = request.client.host if request.client else None
+		user_agent = request.headers.get("user-agent")
+		insert_log(request.method, request.url.path, response.status_code, duration_ms, client_ip, user_agent)
+	except Exception:
+		# Avoid breaking requests due to logging failure
+		pass
+	return response
+
+
+@app.get("/api/logs")
+def get_logs(limit: int = 50) -> List[dict]:
+	rows = []
+	for row in fetch_logs(limit=limit):
+		rows.append({
+			"id": row[0],
+			"method": row[1],
+			"path": row[2],
+			"status_code": row[3],
+			"duration_ms": row[4],
+			"client_ip": row[5],
+			"user_agent": row[6],
+			"created_at": row[7],
+		})
+	return rows
 
 @app.get("/", response_class=HTMLResponse)
 def read_root():
