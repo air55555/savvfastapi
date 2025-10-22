@@ -3,6 +3,22 @@ import json
 from datetime import datetime
 from typing import Dict, Any
 import os
+import re
+
+
+def get_git_commit_count() -> int:
+    """
+    Get the total number of commits in the repository.
+    This will be used for auto-incrementing version numbers.
+    """
+    try:
+        result = subprocess.check_output(
+            ["git", "rev-list", "--count", "HEAD"], 
+            stderr=subprocess.DEVNULL
+        ).decode().strip()
+        return int(result)
+    except (subprocess.CalledProcessError, FileNotFoundError, ValueError):
+        return 0
 
 
 def get_git_commit_info() -> Dict[str, Any]:
@@ -65,15 +81,57 @@ def is_git_dirty() -> bool:
         return False
 
 
-def get_version_info() -> Dict[str, Any]:
+def get_auto_increment_version() -> str:
     """
-    Get comprehensive version information for the API.
+    Generate an auto-incrementing version based on git commit count.
+    Format: MAJOR.MINOR.PATCH where PATCH = commit count
     """
+    commit_count = get_git_commit_count()
+    
+    # Base version: 1.0.x where x = commit count
+    major = 1
+    minor = 0
+    patch = commit_count
+    
+    return f"{major}.{minor}.{patch}"
+
+
+def get_semantic_version() -> str:
+    """
+    Generate a semantic version with auto-increment based on git activity.
+    Format: MAJOR.MINOR.PATCH-BUILD
+    """
+    commit_count = get_git_commit_count()
     git_info = get_git_commit_info()
     
+    # Check if there are uncommitted changes
+    is_dirty = git_info.get("is_dirty", False)
+    
+    # Base semantic version
+    major = 1
+    minor = 0
+    patch = commit_count
+    
+    # Add build info if there are uncommitted changes
+    build_suffix = ""
+    if is_dirty:
+        build_suffix = "-dirty"
+    
+    return f"{major}.{minor}.{patch}{build_suffix}"
+
+
+def get_version_info() -> Dict[str, Any]:
+    """
+    Get comprehensive version information for the API with auto-incrementing version.
+    """
+    git_info = get_git_commit_info()
+    commit_count = get_git_commit_count()
+    
     return {
-        "version": "1.0.0",
+        "version": get_auto_increment_version(),
+        "semantic_version": get_semantic_version(),
         "build_date": datetime.now().isoformat(),
+        "commit_count": commit_count,
         "git": git_info,
         "api_name": "FastAPI Palette Cheese API"
     }

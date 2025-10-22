@@ -49,6 +49,8 @@ def health_check():
     return {
         "status": "healthy",
         "version": version_info["version"],
+        "semantic_version": version_info["semantic_version"],
+        "commit_count": version_info["commit_count"],
         "build_date": version_info["build_date"],
         "git": version_info["git"],
         "api_name": version_info["api_name"]
