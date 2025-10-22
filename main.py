@@ -19,6 +19,7 @@ from db import (
 	fetch_get_camera_res_responses,
 	fetch_latest_palletes_scan_by_sscc,
 )
+from version import get_version_info
 
 class SetPalletRequest(BaseModel):
 	SSCC: str
@@ -44,7 +45,14 @@ def on_startup():
 
 @app.get("/api/health")
 def health_check():
-    return {"status": "healthy"}
+    version_info = get_version_info()
+    return {
+        "status": "healthy",
+        "version": version_info["version"],
+        "build_date": version_info["build_date"],
+        "git": version_info["git"],
+        "api_name": version_info["api_name"]
+    }
 
 @app.post("/api/setpallet", response_model=SetPalletResponse)
 def set_pallet(payload: SetPalletRequest) -> SetPalletResponse:
