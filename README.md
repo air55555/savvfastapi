@@ -18,10 +18,10 @@ pip install -r requirements.txt
 
 ## Running Locally
 
-Start the development server on http://0.0.0.0:5001
+Start the development server on http://0.0.0.0:8000
 
 ```bash
-uvicorn main:app --reload --port 5001
+uvicorn main:app --reload --port 8000 --host 0.0.0.0
 ```
 
 ### curl examples
@@ -33,14 +33,7 @@ curl -s http://localhost:5001/api/health
 
 Set pallet:
 ```bash
-curl -s -X POST http://localhost:5001/api/setpallet \
-  -H "Content-Type: application/json" \
-  -d '{
-    "SSCC": "148102689000000010",
-    "IDPoint": "ID1",
-    "Message": "PalletOnID",
-    "Weight": 123.45
-  }'
+curl -s -X POST http://localhost:8000/api/setpallet   -H "Content-Type: application/json"   -d '{    "SSCC": "148102689000000010","IDPoint": "ID1",    "Message": "PalletOnID",    "Weight": 123.45   }'
 ```
 
 Get camera result:
@@ -58,9 +51,7 @@ The API includes pre-populated test data in the `palletes_scan` table. Here are 
 
 #### Test Case 1: Good Result (SSCC: "111")
 ```bash
-curl -s -X POST http://localhost:5001/api/getcamerares \
-  -H "Content-Type: application/json" \
-  -d '{"SSCC": "111"}'
+curl -s -X POST http://localhost:8000/api/getcamerares  -H "Content-Type: application/json" -d '{"SSCC": "111"}'
 ```
 **Expected Response:**
 ```json
@@ -160,8 +151,20 @@ curl -Method POST "http://localhost:5001/api/setpallet" -ContentType "applicatio
 #### PowerShell Camera Result Testing:
 ```powershell
 # Test Case 1: Good Result
-curl -Method POST "http://localhost:5001/api/getcamerares" -ContentType "application/json" -Body '{"SSCC":"111"}'
+curl -Method POST "http://localhost:8000/api/getcamerares" -ContentType "application/json" -Body '{"SSCC":"111"}'
+PS C:\Users\LRS> Invoke-RestMethod -Uri "http://localhost:8000/api/getcamerares" -Method Post -Body '{"SSCC":"111"}' -ContentType "application/json"
 
+
+IDPoint     : ID1
+SSCC        : 111
+Status      : PalletResult
+Probability : Ok
+Degree      : Ok
+Result      : Ok
+
+
+
+PS C:\Users\LRS>
 # Test Case 2: Bad Result  
 curl -Method POST "http://localhost:5001/api/getcamerares" -ContentType "application/json" -Body '{"SSCC":"666"}'
 
