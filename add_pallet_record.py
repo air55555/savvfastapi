@@ -2,36 +2,28 @@ import argparse
 import sys
 from typing import List
 
-from db import init_db, get_connection
-
-
-def insert_into_palletes(sscc: str, status: str) -> int:
-	conn = get_connection()
-	try:
-		cur = conn.execute(
-			"""
-			INSERT INTO palletes_scan(SSCC, Status)
-			VALUES(?, ?)
-			""",
-			(sscc, status),
-		)
-		conn.commit()
-		return cur.lastrowid
-	finally:
-		conn.close()
+from db import init_db, insert_palletes_scan
 
 
 def main(argv: List[str]) -> int:
 	parser = argparse.ArgumentParser(description="Insert one record into 'palletes_scan' table")
 	parser.add_argument("--sscc", default="148102689000000010", help="SSCC value (default: 148102689000000010)")
-	parser.add_argument("--status", default="Ok", help="Status value (default: Ok)")
+	parser.add_argument("--idpoint", default="ID1", help="IDPoint value (default: ID1)")
+	parser.add_argument("--details", default="manual insert", help="Details value (default: manual insert)")
+	parser.add_argument("--status", default="Scanned", help="Status value (default: Scanned)")
+	parser.add_argument("--result", default="Ok", help="Result value (default: Ok)")
+	parser.add_argument("--msg", default="done", help="Msg value (default: done)")
 	args = parser.parse_args(argv)
 
 	# Ensure tables exist
 	init_db()
 
-	row_id = insert_into_palletes(args.sscc, args.status)
-	print(f"Inserted into palletes_scan with id={row_id}, SSCC={args.sscc}, Status={args.status}")
+	insert_palletes_scan(args.idpoint, args.sscc, args.details, args.status, args.result, args.msg)
+	print(
+		"Inserted into palletes_scan "
+		f"(IDPoint={args.idpoint}, SSCC={args.sscc}, Details={args.details}, "
+		f"Status={args.status}, Result={args.result}, Msg={args.msg})"
+	)
 	return 0
 
 

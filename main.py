@@ -85,7 +85,7 @@ async def get_camera_res(payload: GetCameraResRequest) -> GetCameraResResponse:
 	insert_get_camera_res_request(payload.SSCC)
 	# resolve result from the latest palletes_scan row for this SSCC
 	row = fetch_latest_palletes_scan_by_sscc(payload.SSCC)
-	resolved_result = row["Status"] if row else "Not found"
+	resolved_result = row["Result"] if row else "Not found"
 	# build and persist response
 	response = GetCameraResResponse(
 		IDPoint="ID1",

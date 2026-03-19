@@ -28,7 +28,7 @@ uvicorn main:app --reload --port 8000 --host 0.0.0.0
 
 Health check:
 ```bash
-curl -s http://localhost:5001/api/health
+curl -s http://localhost:8000/api/health
 ```
 
 Set pallet:
@@ -38,7 +38,7 @@ curl -s -X POST http://localhost:8000/api/setpallet   -H "Content-Type: applicat
 
 Get camera result:
 ```bash
-curl -s -X POST http://localhost:5001/api/getcamerares \
+curl -s -X POST http://localhost:8000/api/getcamerares \
   -H "Content-Type: application/json" \
   -d '{
     "SSCC": "148102689000000010"
@@ -67,7 +67,7 @@ curl -s -X POST http://localhost:8000/api/getcamerares  -H "Content-Type: applic
 
 #### Test Case 2: Bad Result (SSCC: "666")
 ```bash
-curl -s -X POST http://localhost:5001/api/getcamerares \
+curl -s -X POST http://localhost:8000/api/getcamerares \
   -H "Content-Type: application/json" \
   -d '{"SSCC": "666"}'
 ```
@@ -85,7 +85,7 @@ curl -s -X POST http://localhost:5001/api/getcamerares \
 
 #### Test Case 3: Unknown Result (SSCC: "777")
 ```bash
-curl -s -X POST http://localhost:5001/api/getcamerares \
+curl -s -X POST http://localhost:8000/api/getcamerares \
   -H "Content-Type: application/json" \
   -d '{"SSCC": "777"}'
 ```
@@ -103,7 +103,7 @@ curl -s -X POST http://localhost:5001/api/getcamerares \
 
 #### Test Case 4: Not Found (SSCC: "999")
 ```bash
-curl -s -X POST http://localhost:5001/api/getcamerares \
+curl -s -X POST http://localhost:8000/api/getcamerares \
   -H "Content-Type: application/json" \
   -d '{"SSCC": "999"}'
 ```
@@ -121,31 +121,31 @@ curl -s -X POST http://localhost:5001/api/getcamerares \
 
 View recent request logs (limit 20):
 ```bash
-curl -s "http://localhost:5001/api/logs?limit=20"
+curl -s "http://localhost:8000/api/logs?limit=20"
 ```
 
 #### One-line curl (copy/paste)
 
 Bash (Linux/macOS/Git Bash):
 ```bash
-curl -s http://localhost:5001/api/health
+curl -s http://localhost:8000/api/health
 ```
 ```bash
-curl -s -X POST http://localhost:5001/api/setpallet -H "Content-Type: application/json" -d '{"SSCC":"148102689000000010","IDPoint":"ID1","Message":"PalletOnID","Weight":123.45}'
+curl -s -X POST http://localhost:8000/api/setpallet -H "Content-Type: application/json" -d '{"SSCC":"148102689000000010","IDPoint":"ID1","Message":"PalletOnID","Weight":123.45}'
 ```
 ```bash
-curl -s -X POST http://localhost:5001/api/getcamerares -H "Content-Type: application/json" -d '{"SSCC":"148102689000000010"}'
+curl -s -X POST http://localhost:8000/api/getcamerares -H "Content-Type: application/json" -d '{"SSCC":"148102689000000010"}'
 ```
 ```bash
-curl -s "http://localhost:5001/api/logs?limit=20"
+curl -s "http://localhost:8000/api/logs?limit=20"
 ```
 
 PowerShell (Windows):
 ```powershell
-curl -Method GET "http://localhost:5001/api/health"
+curl -Method GET "http://localhost:8000/api/health"
 ```
 ```powershell
-curl -Method POST "http://localhost:5001/api/setpallet" -ContentType "application/json" -Body '{"SSCC":"148102689000000010","IDPoint":"ID1","Message":"PalletOnID","Weight":123.45}'
+curl -Method POST "http://localhost:8000/api/setpallet" -ContentType "application/json" -Body '{"SSCC":"148102689000000010","IDPoint":"ID1","Message":"PalletOnID","Weight":123.45}'
 ```
 
 #### PowerShell Camera Result Testing:
@@ -166,23 +166,23 @@ Result      : Ok
 
 PS C:\Users\LRS>
 # Test Case 2: Bad Result  
-curl -Method POST "http://localhost:5001/api/getcamerares" -ContentType "application/json" -Body '{"SSCC":"666"}'
+curl -Method POST "http://localhost:8000/api/getcamerares" -ContentType "application/json" -Body '{"SSCC":"666"}'
 
 # Test Case 3: Unknown Result
-curl -Method POST "http://localhost:5001/api/getcamerares" -ContentType "application/json" -Body '{"SSCC":"777"}'
+curl -Method POST "http://localhost:8000/api/getcamerares" -ContentType "application/json" -Body '{"SSCC":"777"}'
 
 # Test Case 4: Not Found
-curl -Method POST "http://localhost:5001/api/getcamerares" -ContentType "application/json" -Body '{"SSCC":"999"}'
+curl -Method POST "http://localhost:8000/api/getcamerares" -ContentType "application/json" -Body '{"SSCC":"999"}'
 ```
 
 ```powershell
-curl -Method GET "http://localhost:5001/api/logs?limit=20"
+curl -Method GET "http://localhost:8000/api/logs?limit=20"
 ```
 
 PowerShell example (Invoke-RestMethod):
 ```powershell
 $body = @{ SSCC = "148102689000000010"; IDPoint = "ID1"; Message = "PalletOnID"; Weight = 123.45 } | ConvertTo-Json
-Invoke-RestMethod -Method Post -Uri "http://localhost:5001/api/setpallet" -ContentType "application/json" -Body $body
+Invoke-RestMethod -Method Post -Uri "http://localhost:8000/api/setpallet" -ContentType "application/json" -Body $body
 ```
 ## Database Test Records
 
@@ -198,25 +198,30 @@ The database contains pre-populated test records for different scenarios:
 
 **Good Result:**
 ```powershell
-curl -Method POST "http://localhost:5001/api/getcamerares" -ContentType "application/json" -Body '{"SSCC":"111"}'
+curl -Method POST "http://localhost:8000/api/getcamerares" -ContentType "application/json" -Body '{"SSCC":"111"}'
 ```
 
 **Bad Result:**
 ```powershell
-curl -Method POST "http://localhost:5001/api/getcamerares" -ContentType "application/json" -Body '{"SSCC":"666"}'
+curl -Method POST "http://localhost:8000/api/getcamerares" -ContentType "application/json" -Body '{"SSCC":"666"}'
 ```
 
 **Unknown Result:**
 ```powershell
-curl -Method POST "http://localhost:5001/api/getcamerares" -ContentType "application/json" -Body '{"SSCC":"777"}'
+curl -Method POST "http://localhost:8000/api/getcamerares" -ContentType "application/json" -Body '{"SSCC":"777"}'
 ```
 
 ### Adding New Test Records
 
 To add new test records to the database:
 ```bash
-python add_pallet_record.py --sscc 148102689000000010 --status Found
-python add_pallet_record.py --sscc 999 --status "Quality Issue"
+python add_pallet_record.py --sscc 148102689000000010 --idpoint ID1 --details "manual insert" --status Scanned --result Ok --msg done
+python add_pallet_record.py --sscc 999 --idpoint ID2 --details "quality issue" --status Rejected --result BadLabel --msg "needs review"
+```
+
+To bulk-fill the scan table with standalone test data:
+```bash
+python scripts/seed_palletes_scan_testdata.py --n 20
 ```
 
 
@@ -226,7 +231,7 @@ python add_pallet_record.py --sscc 999 --status "Quality Issue"
 PowerShell example (Invoke-RestMethod):
 ```powershell
 $body = @{ SSCC = "148102689000000010" } | ConvertTo-Json
-Invoke-RestMethod -Method Post -Uri "http://localhost:5001/api/getcamerares" -ContentType "application/json" -Body $body
+Invoke-RestMethod -Method Post -Uri "http://localhost:8000/api/getcamerares" -ContentType "application/json" -Body $body
 ```
 ---- Integration  tests outside 
 plain http browser
