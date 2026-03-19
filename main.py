@@ -5,6 +5,9 @@ from typing import Literal
 from typing import List
 from fastapi import Request
 import time
+import logging
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 from db import (
 	init_db, 
@@ -20,6 +23,44 @@ from db import (
 	fetch_latest_palletes_scan_by_sscc,
 )
 from version import get_version_info
+
+
+def _setup_request_logger() -> logging.Logger:
+	logger = logging.getLogger("savvfastapi.requests")
+	if logger.handlers:
+		return logger
+
+	logger.setLevel(logging.INFO)
+
+	# Log to file (rotating)
+	log_dir = Path("logs")
+	log_dir.mkdir(parents=True, exist_ok=True)
+	file_handler = RotatingFileHandler(
+		log_dir / "requests.log",
+		maxBytes=2_000_000,
+		backupCount=5,
+		encoding="utf-8",
+	)
+	file_handler.setLevel(logging.INFO)
+
+	formatter = logging.Formatter(
+		fmt="%(asctime)s %(levelname)s %(message)s",
+		datefmt="%Y-%m-%d %H:%M:%S",
+	)
+	file_handler.setFormatter(formatter)
+
+	# Also log to console
+	stream_handler = logging.StreamHandler()
+	stream_handler.setLevel(logging.INFO)
+	stream_handler.setFormatter(formatter)
+
+	logger.addHandler(file_handler)
+	logger.addHandler(stream_handler)
+	logger.propagate = False
+	return logger
+
+
+request_logger_file = _setup_request_logger()
 
 class SetPalletRequest(BaseModel):
 	SSCC: str
@@ -116,6 +157,17 @@ async def request_logger(request: Request, call_next):
 		client_ip = request.client.host if request.client else None
 		user_agent = request.headers.get("user-agent")
 		insert_log(request.method, request.url.path, response.status_code, duration_ms, client_ip, user_agent)
+
+		# Human-friendly request timing + file logging
+		request_logger_file.info(
+			"%s %s status=%s duration_ms=%.2f client_ip=%s ua=%s",
+			request.method,
+			request.url.path,
+			response.status_code,
+			duration_ms,
+			client_ip,
+			user_agent or "",
+		)
 	except Exception:
 		# Avoid breaking requests due to logging failure
 		pass
