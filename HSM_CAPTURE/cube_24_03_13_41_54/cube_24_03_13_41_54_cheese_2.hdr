@@ -1,0 +1,13 @@
+ENVI
+description = {
+  Specim FX10E hyperspectral cube}
+samples = 512
+lines = 241
+bands = 114
+header offset = 0
+file type = ENVI Standard
+data type = 4
+interleave = bil
+byte order = 0
+exposure time = 2000.0
+exposure time units = microseconds
