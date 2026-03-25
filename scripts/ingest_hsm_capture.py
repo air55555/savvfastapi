@@ -50,6 +50,18 @@ def folder_timestamp(folder: Path) -> Optional[datetime]:
 		return None
 
 
+def cube_dir_sort_key(folder: Path) -> Tuple[int, datetime]:
+	"""
+	Sort by the timestamp encoded in the folder name (preferred),
+	falling back to filesystem mtime when name parsing fails.
+	"""
+	ts = folder_timestamp(folder)
+	if ts is None:
+		# Put unparsable folders at the end; tie-break on mtime.
+		return (1, datetime.fromtimestamp(folder.stat().st_mtime))
+	return (0, ts)
+
+
 def nearest_set_pallet_request(ts: datetime, tolerance_seconds: int) -> Optional[Dict]:
 	start = (ts - timedelta(seconds=tolerance_seconds)).strftime("%Y-%m-%d %H:%M:%S")
 	end = (ts + timedelta(seconds=tolerance_seconds)).strftime("%Y-%m-%d %H:%M:%S")
@@ -120,17 +132,29 @@ def process_folder(folder: Path, tolerance_seconds: int) -> Tuple[int, int]:
 	req = nearest_set_pallet_request(ts, tolerance_seconds=tolerance_seconds)
 	sscc = req["SSCC"] if req else "UNKNOWN_SSCC"
 	id_point = req["IDPoint"] if req else "UNKNOWN_IDPOINT"
-	if req:
-		# Write SSCC marker filename without extension into cube folder.
-		(folder / sscc).write_text(sscc, encoding="utf-8")
+
+	# Always write SSCC marker filename without extension into cube folder,
+	# so you can quickly see which pallet record was matched.
+	(folder / sscc).write_text(sscc, encoding="utf-8")
 
 	inserted = 0
 	skipped = 0
+	processed_hdrs = []
 	for hdr in sorted(folder.iterdir()):
 		if not hdr.is_file() or not CHEESE_HDR_RE.match(hdr.name):
 			continue
+		processed_hdrs.append(hdr)
 		w, h = parse_hdr_sizes(hdr)
-		details = f"source={folder.name}/{hdr.name}; w={w if w is not None else 'NA'}; h={h if h is not None else 'NA'}"
+		set_pallet_created_at = str(req.get("created_at")) if req else "NotMatched"
+		set_pallet_id = str(req.get("id")) if req else "NotMatched"
+		details = (
+			f"source={folder.name}/{hdr.name}; "
+			f"cube_ts={ts.strftime('%Y-%m-%d %H:%M:%S')}; "
+			f"set_pallet_id={set_pallet_id}; "
+			f"set_pallet_created_at={set_pallet_created_at}; "
+			f"w={w if w is not None else 'NA'}; "
+			f"h={h if h is not None else 'NA'}"
+		)
 		msg = f"hsm_ingest:{folder.name}/{hdr.name}"
 		ok = upsert_scan_row(
 			id_point=id_point,
@@ -144,6 +168,15 @@ def process_folder(folder: Path, tolerance_seconds: int) -> Tuple[int, int]:
 			inserted += 1
 		else:
 			skipped += 1
+
+	print(
+		f"{folder.name}: cube_ts={ts.strftime('%Y-%m-%d %H:%M:%S')}; "
+		f"matched_set_pallet_sscc={(req['SSCC'] if req else 'NONE')}; "
+		f"matched_set_pallet_id={(req['id'] if req else 'NONE')}; "
+		f"matched_set_pallet_idpoint={(req['IDPoint'] if req else 'NONE')}; "
+		f"matched_set_pallet_created_at={(req['created_at'] if req else 'NONE')}; "
+		f"hdr_files={[p.name for p in processed_hdrs]}"
+	)
 	return inserted, skipped
 
 
@@ -164,7 +197,8 @@ def main() -> int:
 	init_db()
 
 	cube_dirs = [d for d in root.iterdir() if d.is_dir() and d.name.startswith("cube_")]
-	cube_dirs.sort(key=lambda p: p.stat().st_mtime, reverse=True)  # newest first
+	# Sort newest first by cube timestamp encoded in folder name.
+	cube_dirs.sort(key=cube_dir_sort_key, reverse=True)  # newest first
 	if args.limit_folders > 0:
 		cube_dirs = cube_dirs[: args.limit_folders]
 

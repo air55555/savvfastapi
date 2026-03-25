@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -75,6 +75,34 @@ def test_folder_timestamp_invalid_name(tmp_path: Path) -> None:
     folder.mkdir()
     folder.touch()
     assert ingest_hsm_capture.folder_timestamp(folder) is None
+
+
+def test_cube_dir_sort_key_prefers_folder_timestamp(tmp_path: Path) -> None:
+    """
+    The ingester must sort by the timestamp in folder name (DD_MM_HH_MM_SS),
+    not by filesystem mtime.
+    """
+    import os
+
+    feb = tmp_path / "cube_25_02_09_35_56"
+    mar24 = tmp_path / "cube_24_03_16_20_37"
+    mar25 = tmp_path / "cube_25_03_10_36_04"
+    feb.mkdir()
+    mar24.mkdir()
+    mar25.mkdir()
+
+    # Force filesystem mtimes to be "wrong" (latest mtime on Feb folder).
+    base = datetime(2026, 3, 26, 10, 0, 0)
+    os.utime(feb, (base.timestamp(), base.timestamp()))
+    os.utime(mar25, ((base - timedelta(days=2)).timestamp(), (base - timedelta(days=2)).timestamp()))
+    os.utime(mar24, ((base - timedelta(days=1)).timestamp(), (base - timedelta(days=1)).timestamp()))
+
+    # Sorting by key should still put Mar 25 first, then Mar 24, then Feb 25.
+    dirs = [feb, mar24, mar25]
+    dirs.sort(key=ingest_hsm_capture.cube_dir_sort_key, reverse=True)
+    assert dirs[0].name == "cube_25_03_10_36_04"
+    assert dirs[1].name == "cube_24_03_16_20_37"
+    assert dirs[2].name == "cube_25_02_09_35_56"
 
 
 # --- nearest_set_pallet_request ---
