@@ -4,7 +4,8 @@ from pathlib import Path
 from typing import Iterable, Optional, Tuple, Union
 
 
-DB_PATH = Path(os.getenv("SAVVFASTAPI_DB_PATH", "savvfastapi.db"))
+_PROJECT_ROOT = Path(__file__).resolve().parent
+DB_PATH = Path(os.getenv("SAVVFASTAPI_DB_PATH", str(_PROJECT_ROOT / "savvfastapi.db")))
 
 
 def set_db_path(path: Union[str, Path]) -> None:
