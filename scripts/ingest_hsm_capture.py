@@ -9,6 +9,7 @@ from typing import Dict, Optional, Tuple
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
+import db  # noqa: E402
 from db import get_connection, init_db  # noqa: E402
 
 
@@ -63,12 +64,26 @@ def cube_dir_sort_key(folder: Path) -> Tuple[int, datetime]:
 
 
 def nearest_set_pallet_request(ts: datetime, tolerance_seconds: int) -> Optional[Dict]:
-	start = (ts - timedelta(seconds=tolerance_seconds)).strftime("%Y-%m-%d %H:%M:%S")
-	end = (ts + timedelta(seconds=tolerance_seconds)).strftime("%Y-%m-%d %H:%M:%S")
-	target = ts.strftime("%Y-%m-%d %H:%M:%S")
-
 	conn = get_connection()
 	try:
+		target = ts.strftime("%Y-%m-%d %H:%M:%S")
+		cur = conn.execute(
+			"""
+			SELECT id, SSCC, IDPoint, Message, Weight, created_at
+			FROM set_pallet_requests
+			WHERE ABS(strftime('%s', created_at) - strftime('%s', ?)) <= ?
+			ORDER BY ABS(strftime('%s', created_at) - strftime('%s', ?)) ASC, id DESC
+			LIMIT 1
+			""",
+			(target, tolerance_seconds, target),
+		)
+		row = cur.fetchone()
+		if row:
+			return dict(row)
+
+		# Fallback (older DBs / different timestamp storage)
+		start = (ts - timedelta(seconds=tolerance_seconds)).strftime("%Y-%m-%d %H:%M:%S")
+		end = (ts + timedelta(seconds=tolerance_seconds)).strftime("%Y-%m-%d %H:%M:%S")
 		cur = conn.execute(
 			"""
 			SELECT id, SSCC, IDPoint, Message, Weight, created_at
@@ -101,10 +116,24 @@ def upsert_scan_row(
 	try:
 		conn.execute("BEGIN IMMEDIATE")
 		existing = conn.execute(
-			"SELECT id FROM palletes_scan WHERE Msg = ? LIMIT 1",
+			"SELECT id, SSCC, IDPoint FROM palletes_scan WHERE Msg = ? LIMIT 1",
 			(msg,),
 		).fetchone()
 		if existing:
+			# If we previously ingested this file without a matched SSCC/IDPoint,
+			# update the row to avoid needing to re-run with a "fresh" DB.
+			if existing["SSCC"] == "UNKNOWN_SSCC" or existing["IDPoint"] == "UNKNOWN_IDPOINT":
+				conn.execute(
+					"""
+					UPDATE palletes_scan
+					SET IDPoint = ?, SSCC = ?, Details = ?, Status = ?, Result = ?, Msg = ?
+					WHERE id = ?
+					""",
+					(id_point, sscc, details, status, result, msg, existing["id"]),
+				)
+				conn.commit()
+				return True
+
 			conn.commit()
 			return False
 
@@ -195,6 +224,8 @@ def main() -> int:
 		return 1
 
 	init_db()
+
+	print(f"Using DB file: {db.DB_PATH}")
 
 	cube_dirs = [d for d in root.iterdir() if d.is_dir() and d.name.startswith("cube_")]
 	# Sort newest first by cube timestamp encoded in folder name.

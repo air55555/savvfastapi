@@ -167,6 +167,48 @@ def test_upsert_scan_row_insert_then_skip(tmp_db_path: Path) -> None:
     assert ok2 is False
 
 
+def test_upsert_scan_row_updates_unknown(tmp_db_path: Path) -> None:
+    import db
+
+    db.set_db_path(tmp_db_path)
+    db.init_db()
+
+    # First insert with unknown markers
+    ok1 = ingest_hsm_capture.upsert_scan_row(
+        id_point="UNKNOWN_IDPOINT",
+        sscc="UNKNOWN_SSCC",
+        details="d1",
+        status="Scanned",
+        result="Ok",
+        msg="hsm_ingest:cube_1/cheese_1.hdr",
+    )
+    assert ok1 is True
+
+    # Second run with resolved SSCC/IDPoint should update and return True
+    ok2 = ingest_hsm_capture.upsert_scan_row(
+        id_point="ID2",
+        sscc="SSCC2",
+        details="d2",
+        status="Scanned",
+        result="Ok",
+        msg="hsm_ingest:cube_1/cheese_1.hdr",
+    )
+    assert ok2 is True
+
+    conn = db.get_connection()
+    try:
+        row = conn.execute(
+            "SELECT IDPoint, SSCC, Details FROM palletes_scan WHERE Msg = ?",
+            ("hsm_ingest:cube_1/cheese_1.hdr",),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    assert row["IDPoint"] == "ID2"
+    assert row["SSCC"] == "SSCC2"
+    assert row["Details"] == "d2"
+
+
 # --- process_folder ---
 
 
