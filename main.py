@@ -8,6 +8,7 @@ import time
 import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
+import json
 
 from db import (
 	init_db, 
@@ -43,11 +44,21 @@ def _setup_request_logger() -> logging.Logger:
 	)
 	file_handler.setLevel(logging.INFO)
 
+	# More verbose log file for payload/header dumps.
+	file_handler_full = RotatingFileHandler(
+		log_dir / "requests_full.log",
+		maxBytes=5_000_000,
+		backupCount=3,
+		encoding="utf-8",
+	)
+	file_handler_full.setLevel(logging.INFO)
+
 	formatter = logging.Formatter(
 		fmt="%(asctime)s %(levelname)s %(message)s",
 		datefmt="%Y-%m-%d %H:%M:%S",
 	)
 	file_handler.setFormatter(formatter)
+	file_handler_full.setFormatter(formatter)
 
 	# Also log to console
 	stream_handler = logging.StreamHandler()
@@ -55,6 +66,7 @@ def _setup_request_logger() -> logging.Logger:
 	stream_handler.setFormatter(formatter)
 
 	logger.addHandler(file_handler)
+	logger.addHandler(file_handler_full)
 	logger.addHandler(stream_handler)
 	logger.propagate = False
 	return logger
@@ -149,6 +161,13 @@ async def get_camera_res(payload: GetCameraResRequest) -> GetCameraResResponse:
 
 @app.middleware("http")
 async def request_logger(request: Request, call_next):
+	# Read body early so downstream handlers can still access it (Starlette caches it).
+	body_bytes = b""
+	try:
+		body_bytes = await request.body()
+	except Exception:
+		body_bytes = b""
+
 	start = time.perf_counter()
 	response = await call_next(request)
 	duration_ms = (time.perf_counter() - start) * 1000.0
@@ -167,6 +186,47 @@ async def request_logger(request: Request, call_next):
 			duration_ms,
 			client_ip,
 			user_agent or "",
+		)
+
+		# Extended dump (payload + headers + query)
+		# - We redact sensitive headers.
+		# - We truncate huge bodies to keep logs manageable.
+		MAX_BODY_BYTES = 50_000
+		body_preview = body_bytes
+		truncated = False
+		if len(body_bytes) > MAX_BODY_BYTES:
+			body_preview = body_bytes[:MAX_BODY_BYTES]
+			truncated = True
+
+		body_text = body_preview.decode("utf-8", errors="replace")
+		if truncated:
+			body_text += "...[TRUNCATED]"
+
+		headers_dump = {}
+		for k, v in request.headers.items():
+			kl = k.lower()
+			if kl in {"authorization", "cookie", "set-cookie"}:
+				headers_dump[k] = "REDACTED"
+			else:
+				headers_dump[k] = v
+
+		query_dump = dict(request.query_params)
+
+		# Attempt to pretty-print JSON bodies if possible.
+		body_json = None
+		if body_text:
+			try:
+				body_json = json.loads(body_text)
+			except Exception:
+				body_json = None
+
+		request_logger_file.info(
+			"[IN] %s %s query=%s headers=%s body=%s",
+			request.method,
+			request.url.path,
+			query_dump,
+			headers_dump,
+			json.dumps(body_json, ensure_ascii=False) if body_json is not None else body_text,
 		)
 	except Exception:
 		# Avoid breaking requests due to logging failure
