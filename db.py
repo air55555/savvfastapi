@@ -328,6 +328,25 @@ def fetch_latest_palletes_scan_by_sscc(sscc: str) -> Optional[dict]:
 		return dict(row) if row else None
 	finally:
 		conn.close()
+
+
+def fetch_palletes_scan_by_sscc(sscc: str, limit: int = 50):
+	conn = get_connection()
+	try:
+		cur = conn.execute(
+			"""
+			SELECT id, IDPoint, SSCC, Details, Status, Result, Msg, created_at
+			FROM palletes_scan
+			WHERE SSCC = ?
+			ORDER BY id DESC
+			LIMIT ?
+			""",
+			(sscc, limit),
+		)
+		return [dict(row) for row in cur.fetchall()]
+	finally:
+		conn.close()
+
 def fetch_set_pallet_requests(limit: int = 100):
 	conn = get_connection()
 	try:

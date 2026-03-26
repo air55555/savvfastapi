@@ -22,6 +22,7 @@ from db import (
 	fetch_get_camera_res_requests,
 	fetch_get_camera_res_responses,
 	fetch_latest_palletes_scan_by_sscc,
+	fetch_palletes_scan_by_sscc,
 )
 from version import get_version_info
 
@@ -123,38 +124,51 @@ class GetCameraResRequest(BaseModel):
 	SSCC: str
 
 
-class GetCameraResResponse(BaseModel):
+class GetCameraResRecord(BaseModel):
 	IDPoint: str
 	SSCC: str
-	Status: Literal["PalletResult"]
-	Probability: str
-	Degree: str
+	Details: str
+	ScanStatus: str
 	Result: str
+	Msg: str
+	created_at: str
+
+
+class GetCameraResResponse(BaseModel):
+	Status: Literal["PalletResult"]
+	Count: int
+	Records: List[GetCameraResRecord]
 
 
 @app.post("/api/getcamerares", response_model=GetCameraResResponse)
 async def get_camera_res(payload: GetCameraResRequest) -> GetCameraResResponse:
 	# persist request
 	insert_get_camera_res_request(payload.SSCC)
-	# resolve result from the latest palletes_scan row for this SSCC
-	row = fetch_latest_palletes_scan_by_sscc(payload.SSCC)
-	resolved_result = row["Result"] if row else "Not found"
-	# build and persist response
-	response = GetCameraResResponse(
-		IDPoint="ID1",
-		SSCC=payload.SSCC,
-		Status="PalletResult",
-		Probability=resolved_result,
-		Degree=resolved_result,
-		Result=resolved_result,
-	)
+	rows = fetch_palletes_scan_by_sscc(payload.SSCC, limit=50)
+	records = [
+		GetCameraResRecord(
+			IDPoint=row["IDPoint"],
+			SSCC=row["SSCC"],
+			Details=row["Details"],
+			ScanStatus=row["Status"],
+			Result=row["Result"],
+			Msg=row["Msg"],
+			created_at=row["created_at"],
+		)
+		for row in rows
+	]
+
+	response = GetCameraResResponse(Status="PalletResult", Count=len(records), Records=records)
+
+	latest_result = records[0].Result if records else "Not found"
+	latest_id_point = records[0].IDPoint if records else "ID1"
 	insert_get_camera_res_response(
-		response.IDPoint,
-		response.SSCC,
+		latest_id_point,
+		payload.SSCC,
 		response.Status,
-		response.Probability,
-		response.Degree,
-		response.Result,
+		latest_result,
+		latest_result,
+		latest_result,
 	)
 	return response
 

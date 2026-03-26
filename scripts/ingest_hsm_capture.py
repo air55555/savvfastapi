@@ -72,7 +72,13 @@ def nearest_set_pallet_request(ts: datetime, tolerance_seconds: int) -> Optional
 			SELECT id, SSCC, IDPoint, Message, Weight, created_at
 			FROM set_pallet_requests
 			WHERE ABS(strftime('%s', created_at) - strftime('%s', ?)) <= ?
-			ORDER BY ABS(strftime('%s', created_at) - strftime('%s', ?)) ASC, id DESC
+			ORDER BY
+				CASE
+					WHEN TRIM(SSCC) <> '' AND REPLACE(TRIM(SSCC), '0', '') <> '' THEN 1
+					ELSE 0
+				END DESC,
+				ABS(strftime('%s', created_at) - strftime('%s', ?)) ASC,
+				id DESC
 			LIMIT 1
 			""",
 			(target, tolerance_seconds, target),

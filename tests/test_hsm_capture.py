@@ -138,6 +138,31 @@ def test_nearest_set_pallet_request_no_match(tmp_db_path: Path) -> None:
     assert row is None
 
 
+def test_nearest_set_pallet_request_prefers_non_zero_sscc(tmp_db_path: Path) -> None:
+    import db
+
+    db.set_db_path(tmp_db_path)
+    db.init_db()
+    conn = db.get_connection()
+    try:
+        conn.execute(
+            "INSERT INTO set_pallet_requests(SSCC, IDPoint, Message, Weight, created_at) VALUES(?,?,?,?,?)",
+            ("0", "UNDEF", "PalletOnID", 0.0, "2026-03-25 10:36:04"),
+        )
+        conn.execute(
+            "INSERT INTO set_pallet_requests(SSCC, IDPoint, Message, Weight, created_at) VALUES(?,?,?,?,?)",
+            ("103604", "BUSY", "PalletOnID", 0.0, "2026-03-25 10:36:05"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    ts = datetime(2026, 3, 25, 10, 36, 4)
+    row = ingest_hsm_capture.nearest_set_pallet_request(ts, tolerance_seconds=5)
+    assert row is not None
+    assert row["SSCC"] == "103604"
+
+
 # --- upsert_scan_row ---
 
 

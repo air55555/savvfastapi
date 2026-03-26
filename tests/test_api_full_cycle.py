@@ -29,17 +29,21 @@ def test_setpallet_persists_request_and_response(app_client, tmp_db_path):
 
 
 def test_getcamerares_uses_latest_scan_result(app_client, tmp_db_path):
-	# Seed scan record for this SSCC
+	# Seed multiple scan records for this SSCC
 	db.set_db_path(tmp_db_path)
-	db.insert_palletes_scan("IDX", "111", "good", "Accepted", "Ok", "done")
+	db.insert_palletes_scan("IDX", "111", "old", "Accepted", "BadLabel", "old-msg")
+	db.insert_palletes_scan("IDY", "111", "new", "Accepted", "Ok", "new-msg")
 
 	r = app_client.post("/api/getcamerares", json={"SSCC": "111"})
 	assert r.status_code == 200
 	data = r.json()
-	assert data["SSCC"] == "111"
-	assert data["Result"] == "Ok"
-	assert data["Probability"] == "Ok"
-	assert data["Degree"] == "Ok"
+	assert data["Status"] == "PalletResult"
+	assert data["Count"] == 2
+	assert len(data["Records"]) == 2
+	assert data["Records"][0]["SSCC"] == "111"
+	assert data["Records"][0]["Result"] == "Ok"
+	assert data["Records"][0]["Details"] == "new"
+	assert data["Records"][0]["ScanStatus"] == "Accepted"
 
 
 def test_logs_endpoint_gets_rows(app_client):
