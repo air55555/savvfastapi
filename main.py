@@ -75,6 +75,24 @@ def _setup_request_logger() -> logging.Logger:
 
 request_logger_file = _setup_request_logger()
 
+
+def _fix_mojibake_text(value: str) -> str:
+	"""
+	Best-effort fix for UTF-8 text that was decoded as latin-1/cp1252,
+	which appears as sequences like 'Ð¡ÑÑ ...'.
+	"""
+	if not isinstance(value, str):
+		return value
+	if "Ð" not in value and "Ñ" not in value:
+		return value
+	try:
+		fixed = value.encode("latin1", errors="ignore").decode("utf-8", errors="ignore")
+		if any("\u0400" <= ch <= "\u04FF" for ch in fixed):
+			return fixed
+	except Exception:
+		pass
+	return value
+
 class SetPalletRequest(BaseModel):
 	SSCC: str
 	IDPoint: str
@@ -147,12 +165,12 @@ async def get_camera_res(payload: GetCameraResRequest) -> GetCameraResResponse:
 	rows = fetch_palletes_scan_by_sscc(payload.SSCC, limit=50)
 	records = [
 		GetCameraResRecord(
-			IDPoint=row["IDPoint"],
+			IDPoint=_fix_mojibake_text(row["IDPoint"]),
 			SSCC=row["SSCC"],
-			Details=row["Details"],
-			ScanStatus=row["Status"],
-			Result=row["Result"],
-			Msg=row["Msg"],
+			Details=_fix_mojibake_text(row["Details"]),
+			ScanStatus=_fix_mojibake_text(row["Status"]),
+			Result=_fix_mojibake_text(row["Result"]),
+			Msg=_fix_mojibake_text(row["Msg"]),
 			created_at=row["created_at"],
 		)
 		for row in rows

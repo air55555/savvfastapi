@@ -148,6 +148,18 @@ curl -Method GET "http://localhost:8000/api/health"
 curl -Method POST "http://localhost:8000/api/setpallet" -ContentType "application/json" -Body '{"SSCC":"148102689000000010","IDPoint":"ID1","Message":"PalletOnID","Weight":123.45}'
 ```
 
+PowerShell: print full `/api/getcamerares` response (all records):
+```powershell
+$body = @{ SSCC = "00648102680008015841" } | ConvertTo-Json
+$r = Invoke-RestMethod -Method Post -Uri "http://localhost:8000/api/getcamerares" -ContentType "application/json" -Body $body
+$r | ConvertTo-Json -Depth 20
+```
+
+PowerShell: print each record fields:
+```powershell
+$r.Records | Format-List *
+```
+
 #### PowerShell Camera Result Testing:
 ```powershell
 # Test Case 1: Good Result
