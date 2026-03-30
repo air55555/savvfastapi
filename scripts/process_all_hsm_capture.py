@@ -34,7 +34,7 @@ def main() -> int:
     parser.add_argument("--max-iter", type=int, default=3)
     parser.add_argument(
         "--suffix",
-        default="_cluster.png",
+        default=".png",
         help=f"Output under each cube: {DETECT_SUBDIR}/{{stem}}{{suffix}}",
     )
     parser.add_argument(

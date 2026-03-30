@@ -35,7 +35,7 @@ def process_hsm_capture_dirs(
     limit: int = 0,
     clusters: int = 5,
     max_iter: int = 100,
-    suffix: str = "_cluster.png",
+    suffix: str = ".png",
     output_subdir: str = DETECT_SUBDIR,
 ) -> int:
     """
@@ -96,7 +96,7 @@ def main() -> int:
     parser.add_argument("--max-iter", type=int, default=100)
     parser.add_argument(
         "--suffix",
-        default="_cluster.png",
+        default=".png",
         help="Output: {cube}/{output-subdir}/{cheese_hdr_stem}{suffix}",
     )
     parser.add_argument(

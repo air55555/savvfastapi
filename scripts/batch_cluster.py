@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from typing import Optional
 
 import matplotlib
 
@@ -114,6 +115,82 @@ def _prepare_features(arr: np.ndarray) -> tuple[np.ndarray, tuple[int, int]]:
     return features, img_shape
 
 
+def _crop_window(h: int, w: int, crop_percent: int) -> tuple[int, int, int, int]:
+    """
+    Return (top, bottom, left, right) for center crop by abs(crop_percent)% each side.
+    """
+    p = abs(int(crop_percent))
+    if p <= 0:
+        return 0, h, 0, w
+    top = int(h * p / 100.0)
+    left = int(w * p / 100.0)
+    bottom = h - top
+    right = w - left
+    if top >= bottom or left >= right:
+        logger.warning("Crop percent %s too large for shape (%d, %d); using full frame.", p, h, w)
+        return 0, h, 0, w
+    return top, bottom, left, right
+
+
+def _to_rgb(arr: np.ndarray) -> np.ndarray:
+    """
+    Build an RGB preview in [0..1] from source data.
+    - 3D: combine multiple spectral bands into each RGB channel for vivid result
+    - 2D: grayscale repeated to RGB
+    """
+    if arr.ndim == 2:
+        rgb = np.repeat(arr[:, :, None], 3, axis=2).astype(float)
+    else:
+        c = arr.shape[2]
+        if c >= 6:
+            # Split spectrum into low/mid/high groups and average each group.
+            # This usually yields more informative color than simply taking first 3 bands.
+            idx = np.array_split(np.arange(c), 3)
+            r = np.nanmean(arr[:, :, idx[2]], axis=2)  # higher wavelengths
+            g = np.nanmean(arr[:, :, idx[1]], axis=2)  # mid wavelengths
+            b = np.nanmean(arr[:, :, idx[0]], axis=2)  # lower wavelengths
+            rgb = np.dstack([r, g, b]).astype(float)
+        elif c >= 3:
+            rgb = arr[:, :, :3].astype(float)
+        elif c == 2:
+            rgb = np.dstack([arr[:, :, 0], arr[:, :, 1], arr[:, :, 1]]).astype(float)
+        else:
+            rgb = np.repeat(arr[:, :, :1], 3, axis=2).astype(float)
+
+    # Robust per-channel percentile stretch (better visibility than min-max).
+    out = np.zeros_like(rgb, dtype=float)
+    for ch in range(3):
+        v = rgb[:, :, ch]
+        lo = float(np.nanpercentile(v, 2))
+        hi = float(np.nanpercentile(v, 98))
+        if hi > lo:
+            out[:, :, ch] = (v - lo) / (hi - lo)
+        else:
+            out[:, :, ch] = 0.0
+    out = np.clip(out, 0.0, 1.0)
+
+    # Slight gamma lift for dark zones.
+    gamma = 0.85
+    out = np.power(out, gamma)
+
+    # Small saturation boost via HSV for better color separation.
+    hsv = matplotlib.colors.rgb_to_hsv(out)
+    hsv[:, :, 1] = np.clip(hsv[:, :, 1] * 1.25, 0.0, 1.0)
+    out = matplotlib.colors.hsv_to_rgb(hsv)
+    return np.clip(out, 0.0, 1.0)
+
+
+def _output_with_tags(output: Path, clusters: int, crop_percent: int) -> Path:
+    """
+    Append naming tags like: *_5cluster10p.png
+    """
+    p = abs(int(crop_percent))
+    stem = output.stem
+    suffix = output.suffix or ".png"
+    tagged = f"{stem}_{clusters}cluster{p}p{suffix}"
+    return output.with_name(tagged)
+
+
 def run_clustering(
     features: np.ndarray,
     img_shape: tuple[int, int],
@@ -131,13 +208,27 @@ def run_clustering(
     return labels
 
 
-def save_cluster_image(labels: np.ndarray, output: Path) -> None:
+def save_cluster_image(labels: np.ndarray, output: Path, base_rgb: Optional[np.ndarray] = None) -> None:
     unique, counts = np.unique(labels, return_counts=True)
     class_counts = dict(zip(unique.tolist(), counts.tolist()))
     logger.info("Class pixel counts: %s", class_counts)
 
+    if base_rgb is not None:
+        # Overlay cluster colors on valid cluster area only;
+        # keep outside area as original RGB.
+        valid = labels >= 0
+        labels_for_colormap = np.where(valid, labels, 0)
+        cluster_rgb = plt.get_cmap("tab20")(labels_for_colormap.astype(float))[:, :, :3]
+        img = np.array(base_rgb, copy=True)
+        img[valid] = cluster_rgb[valid]
+    else:
+        img = labels
+
     fig = plt.figure(figsize=(8, 4.5), dpi=120)
-    plt.imshow(labels, cmap="tab20")
+    if base_rgb is not None:
+        plt.imshow(img)
+    else:
+        plt.imshow(img, cmap="tab20")
     plt.axis("off")
     plt.tight_layout()
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -151,6 +242,7 @@ def run_pipeline(
     *,
     clusters: int = 5,
     max_iter: int = 100,
+    crop_percent: int = -10,
 ) -> Path:
     """
     One-shot: load dataset, run k-means, save cluster map PNG.
@@ -159,16 +251,34 @@ def run_pipeline(
     input_path = Path(input_path)
     output = Path(output)
     data = _load_array(input_path)
-    features, img_shape = _prepare_features(data)
+    base_rgb = _to_rgb(data)
+    full_h, full_w = data.shape[0], data.shape[1]
+    top, bottom, left, right = _crop_window(full_h, full_w, crop_percent)
+    if data.ndim == 2:
+        cropped = data[top:bottom, left:right]
+    else:
+        cropped = data[top:bottom, left:right, :]
+    logger.info(
+        "Crop window: top=%d bottom=%d left=%d right=%d, cropped shape=%s",
+        top, bottom, left, right, cropped.shape,
+    )
+
+    features, img_shape = _prepare_features(cropped)
     labels = run_clustering(
         features=features,
         img_shape=img_shape,
         clusters=clusters,
         iters=max_iter,
     )
-    save_cluster_image(labels, output)
-    logger.info("Saved cluster image to: %s", output.resolve())
-    return output.resolve()
+    # Keep output frame same size: fill edges as "no cluster" (-1),
+    # overlay only center clustered window.
+    labels_full = np.full((full_h, full_w), -1, dtype=int)
+    labels_full[top:bottom, left:right] = labels
+
+    tagged_output = _output_with_tags(output, clusters=clusters, crop_percent=crop_percent)
+    save_cluster_image(labels_full, tagged_output, base_rgb=base_rgb)
+    logger.info("Saved cluster image to: %s", tagged_output.resolve())
+    return tagged_output.resolve()
 
 
 def parse_args() -> argparse.Namespace:
@@ -194,6 +304,12 @@ def parse_args() -> argparse.Namespace:
         "--max-iter", type=int, default=100, help="Max iterations."
     )
     parser.add_argument(
+        "--crop-percent",
+        type=int,
+        default=-10,
+        help="Crop percent on all sides before clustering (default: -10).",
+    )
+    parser.add_argument(
         "--seed",
         type=int,
         default=42,
@@ -209,6 +325,7 @@ def main() -> None:
         args.output,
         clusters=args.clusters,
         max_iter=args.max_iter,
+        crop_percent=args.crop_percent,
     )
 
 
