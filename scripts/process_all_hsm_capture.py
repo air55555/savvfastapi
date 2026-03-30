@@ -30,13 +30,13 @@ def main() -> int:
         default=str(hsm.HSM_CAPTURE_ROOT),
         help="HSM_CAPTURE root directory",
     )
-    parser.add_argument("-k", "--clusters", type=int, default=5)
+    parser.add_argument("-k", "--clusters", type=int, default=10)
     parser.add_argument("--max-iter", type=int, default=3)
     parser.add_argument(
         "--crop-percent",
         type=int,
-        default=-1,
-        help="Crop percent on all sides before clustering (default: -10)",
+        default=1,
+        help="Per-side crop %% for cluster overlay (0 = full cluster map PNG).",
     )
     parser.add_argument(
         "--suffix",

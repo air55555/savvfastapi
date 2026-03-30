@@ -35,7 +35,7 @@ def process_hsm_capture_dirs(
     limit: int = 0,
     clusters: int = 5,
     max_iter: int = 100,
-    crop_percent: int = -10,
+    crop_percent: int = 10,
     suffix: str = ".png",
     output_subdir: str = DETECT_SUBDIR,
 ) -> int:
@@ -64,14 +64,14 @@ def process_hsm_capture_dirs(
         for hdr in cheese_hdrs:
             out_png = detect_dir / f"{hdr.stem}{suffix}"
             try:
-                batch_cluster.run_pipeline(
+                saved = batch_cluster.run_pipeline(
                     hdr,
                     out_png,
                     clusters=clusters,
                     max_iter=max_iter,
                     crop_percent=crop_percent,
                 )
-                rel = out_png.relative_to(cube)
+                rel = Path(saved).relative_to(cube)
                 print(f"{cube.name}: OK -> {rel} ({hdr.name})")
             except Exception as e:
                 print(f"{cube.name}: FAIL ({hdr.name}): {e}")
@@ -99,8 +99,8 @@ def main() -> int:
     parser.add_argument(
         "--crop-percent",
         type=int,
-        default=-10,
-        help="Crop percent on all sides before clustering (default: -10)",
+        default=10,
+        help="Per-side crop %% for overlay (0 = full cluster map only, same k-means on full cube).",
     )
     parser.add_argument(
         "--suffix",
