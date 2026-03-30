@@ -35,6 +35,7 @@ def process_hsm_capture_dirs(
     limit: int = 0,
     clusters: int = 5,
     max_iter: int = 100,
+    crop_percent: int = -10,
     suffix: str = ".png",
     output_subdir: str = DETECT_SUBDIR,
 ) -> int:
@@ -68,6 +69,7 @@ def process_hsm_capture_dirs(
                     out_png,
                     clusters=clusters,
                     max_iter=max_iter,
+                    crop_percent=crop_percent,
                 )
                 rel = out_png.relative_to(cube)
                 print(f"{cube.name}: OK -> {rel} ({hdr.name})")
@@ -95,6 +97,12 @@ def main() -> int:
     parser.add_argument("-k", "--clusters", type=int, default=5)
     parser.add_argument("--max-iter", type=int, default=100)
     parser.add_argument(
+        "--crop-percent",
+        type=int,
+        default=-10,
+        help="Crop percent on all sides before clustering (default: -10)",
+    )
+    parser.add_argument(
         "--suffix",
         default=".png",
         help="Output: {cube}/{output-subdir}/{cheese_hdr_stem}{suffix}",
@@ -111,6 +119,7 @@ def main() -> int:
         limit=args.limit,
         clusters=args.clusters,
         max_iter=args.max_iter,
+        crop_percent=args.crop_percent,
         suffix=args.suffix,
         output_subdir=args.output_subdir or "",
     )

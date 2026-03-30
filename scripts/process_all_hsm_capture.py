@@ -33,6 +33,12 @@ def main() -> int:
     parser.add_argument("-k", "--clusters", type=int, default=5)
     parser.add_argument("--max-iter", type=int, default=3)
     parser.add_argument(
+        "--crop-percent",
+        type=int,
+        default=-1,
+        help="Crop percent on all sides before clustering (default: -10)",
+    )
+    parser.add_argument(
         "--suffix",
         default=".png",
         help=f"Output under each cube: {DETECT_SUBDIR}/{{stem}}{{suffix}}",
@@ -49,6 +55,7 @@ def main() -> int:
         limit=0,
         clusters=args.clusters,
         max_iter=args.max_iter,
+        crop_percent=args.crop_percent,
         suffix=args.suffix,
         output_subdir=args.output_subdir or "",
     )
