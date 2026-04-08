@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import shutil
 import sys
+from fnmatch import fnmatch
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parents[1]
@@ -25,6 +26,14 @@ def unique_target_path(target_dir: Path, src_name: str) -> Path:
 	return candidate
 
 
+def matches_wildcard(filename: str, wildcard: str) -> bool:
+	# If no glob symbols are provided, treat wildcard as "contains".
+	pattern = wildcard
+	if not any(ch in wildcard for ch in "*?[]"):
+		pattern = f"*{wildcard}*"
+	return fnmatch(filename, pattern)
+
+
 def main() -> int:
 	parser = argparse.ArgumentParser(
 		description="Copy all files from cube_*/detect subdirs into one directory."
@@ -44,6 +53,11 @@ def main() -> int:
 		default="HSM_CAPTURE_DETECT_ALL",
 		help="Target directory where all detect files are copied",
 	)
+	parser.add_argument(
+		"--wildcard",
+		default="_cr10p_ch",
+		help='Only copy files matching this wildcard (default: "_cr10p_ch")',
+	)
 	args = parser.parse_args()
 
 	root = Path(args.root)
@@ -54,20 +68,30 @@ def main() -> int:
 	out_dir = Path(args.out)
 	out_dir.mkdir(parents=True, exist_ok=True)
 
-	total = 0
+	total_dirs = 0
+	total_files = 0
+	total_copied = 0
 	cube_dirs = [d for d in root.iterdir() if d.is_dir() and d.name.startswith("cube_")]
 	for cube in cube_dirs:
 		detect_dir = cube / args.detect_subdir
 		if not detect_dir.is_dir():
 			continue
+		total_dirs += 1
 		for src in detect_dir.iterdir():
 			if not src.is_file():
 				continue
+			total_files += 1
+			if not matches_wildcard(src.name, args.wildcard):
+				continue
 			dst = unique_target_path(out_dir, src.name)
 			shutil.copy2(src, dst)
-			total += 1
+			total_copied += 1
 
-	print(f"Copied {total} files to: {out_dir.resolve()}")
+	print(f"wildcard: {args.wildcard}")
+	print(f"total files: {total_files}")
+	print(f"total dirs: {total_dirs}")
+	print(f"total copied files: {total_copied}")
+	print(f"output dir: {out_dir.resolve()}")
 	return 0
 
 
