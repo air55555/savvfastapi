@@ -8,7 +8,7 @@ import shutil
 import matplotlib.image as mpimg
 import numpy as np
 
-DEFAULT_SCAN_DIR = Path(r"C:\Users\1\PycharmProjects\savvfastapi\HSM_detect_2clust\test")
+DEFAULT_SCAN_DIR = Path(r"C:\Users\1\PycharmProjects\savvfastapi\HSM_detect_2clust")
 DEFAULT_REFERENCE = "cube_25_02_09_38_02_cr10p_cheese_3_2cluster0p.png"
 DEFAULT_WILDCARD = "_2cluster0p"
 
@@ -121,10 +121,10 @@ def main() -> int:
         help="Center crop size in %% of image width/height (default: 30)",
     )
     parser.add_argument(
-        "--tolerance",
+        "--max-other-percent",
         type=float,
-        default=2.0,
-        help="Allowed difference in percentage points from reference (default: 2.0)",
+        default=5.0,
+        help="Keep files where other-color percent is <= this value (default: 5.0)",
     )
     parser.add_argument(
         "--quant-step",
@@ -137,6 +137,12 @@ def main() -> int:
         type=int,
         default=50,
         help="Max similar files to print (default: 50)",
+    )
+    parser.add_argument(
+        "--progress-every",
+        type=int,
+        default=100,
+        help="Print progress every N files while scanning (default: 100)",
     )
     parser.add_argument(
         "--out-subdir",
@@ -170,24 +176,27 @@ def main() -> int:
         quant_step=args.quant_step,
     )
 
-    rows: list[tuple[Path, float, float]] = []
-    for p in candidates:
+    rows: list[tuple[Path, float]] = []
+    total = len(candidates)
+    step = max(1, int(args.progress_every))
+    for idx, p in enumerate(candidates, start=1):
         pct = particle_percent_in_center(
             p,
             center_percent=args.center_percent,
             quant_step=args.quant_step,
         )
-        delta = abs(pct - ref_percent)
-        rows.append((p, pct, delta))
+        rows.append((p, pct))
+        if idx % step == 0 or idx == total:
+            print(f"progress: {idx}/{total}")
 
-    similar = [r for r in rows if r[2] <= args.tolerance]
-    similar.sort(key=lambda x: (x[2], x[0].name.lower()))
+    similar = [r for r in rows if r[1] <= float(args.max_other_percent)]
+    similar.sort(key=lambda x: (x[1], x[0].name.lower()))
 
     out_subdir = Path(args.out_subdir)
     out_dir = out_subdir if out_subdir.is_absolute() else (scan_dir / out_subdir)
     out_dir.mkdir(parents=True, exist_ok=True)
     copied = 0
-    for p, _, _ in similar:
+    for p, _ in similar:
         shutil.copy2(p, out_dir / p.name)
         copied += 1
 
@@ -196,15 +205,15 @@ def main() -> int:
     print(f"reference: {reference_path.name}")
     print(f"reference particle percent: {ref_percent:.3f}%")
     print(f"center percent: {float(args.center_percent):.2f}%")
-    print(f"tolerance: {float(args.tolerance):.3f} percentage points")
+    print(f"max other percent: {float(args.max_other_percent):.3f}%")
     print(f"total files: {len(candidates)}")
     print(f"total similar files: {len(similar)}")
     print(f"total copied files: {copied}")
     print(f"output dir: {out_dir.resolve()}")
     print("")
     print("similar files:")
-    for p, pct, delta in similar[: max(0, int(args.top))]:
-        print(f"{p.name} | percent={pct:.3f}% | delta={delta:.3f}")
+    for p, pct in similar[: max(0, int(args.top))]:
+        print(f"{p.name} | percent={pct:.3f}%")
 
     return 0
 
