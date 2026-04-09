@@ -8,13 +8,15 @@ import shutil
 import matplotlib.image as mpimg
 import numpy as np
 
-DEFAULT_SCAN_DIR = Path(r"C:\Users\1\PycharmProjects\savvfastapi\HSM_detect_2clust\test")
+DEFAULT_SCAN_DIR = Path(r"C:\Users\1\PycharmProjects\savvfastapi\HSM_detect_2clust")
 DEFAULT_REFERENCE = "cube_25_02_09_38_02_cr10p_cheese_3_2cluster0p.png"
 DEFAULT_WILDCARD = "_2cluster0p"
 
 DEFAULT_CENTER_PERCENT = 30.0
 DEFAULT_OUT_SUBDIR = "filtered"
 DEFAULT_PROGRESS_EVERY = 100
+TARGET_BG_COLOR = (158, 218, 229)
+TARGET_DOT_COLOR = (31, 119, 180)
 
 
 def matches_wildcard(filename: str, wildcard: str) -> bool:
@@ -70,7 +72,7 @@ def color_stats_in_center(
     dominant = int(counts_sorted[0])
     second = int(counts_sorted[1]) if counts_sorted.size > 1 else 0
     total = int(np.sum(counts))
-    other = max(0, total - dominant)
+    other = max(0, total - dominant - second)
     dominant_pct = (dominant / total) * 100.0
     second_pct = (second / total) * 100.0
     other_pct = (other / total) * 100.0
@@ -104,14 +106,14 @@ def list_candidate_pngs(scan_dir: Path, wildcard: str) -> list[Path]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Filter by dominant background percent (#1 + #2 colors in center)."
+        description="Filter by exact target colors and minimum dot percent."
     )
     # Single user parameter.
     parser.add_argument(
-        "--min-background-percent",
+        "--min-dot-percent",
         type=float,
-        default=95.0,
-        help="Keep files where (color #1 + color #2) >= this value (default: 95.0)",
+        default=5.0,
+        help="Keep files where dot color percent is >= this value (default: 5.0)",
     )
     args = parser.parse_args()
 
@@ -145,7 +147,7 @@ def main() -> int:
         reference_path,
         center_percent=DEFAULT_CENTER_PERCENT,
     )
-    rows: list[tuple[Path, tuple[int, int, int], tuple[int, int, int], float, float, float, float]] = []
+    rows: list[tuple[Path, tuple[int, int, int], tuple[int, int, int], float, float, float, bool]] = []
     total = len(candidates)
     step = max(1, int(DEFAULT_PROGRESS_EVERY))
     for idx, p in enumerate(candidates, start=1):
@@ -161,17 +163,17 @@ def main() -> int:
             center_percent=DEFAULT_CENTER_PERCENT,
         )
         _ = color_set
-        background_pct = dominant_pct + second_pct
-        rows.append((p, dom_color, second_color, dominant_pct, second_pct, other_pct, background_pct))
+        target_colors_ok = (dom_color == TARGET_BG_COLOR and second_color == TARGET_DOT_COLOR)
+        rows.append((p, dom_color, second_color, dominant_pct, second_pct, other_pct, target_colors_ok))
         if idx % step == 0 or idx == total:
             print(f"progress: {idx}/{total}")
 
     similar = [
         r
         for r in rows
-        if r[6] >= float(args.min_background_percent)
+        if r[6] and r[4] >= float(args.min_dot_percent)
     ]
-    similar.sort(key=lambda x: (-x[6], x[0].name.lower()))
+    similar.sort(key=lambda x: (-x[4], x[0].name.lower()))
 
     out_subdir = Path(DEFAULT_OUT_SUBDIR)
     out_dir = out_subdir if out_subdir.is_absolute() else (scan_dir / out_subdir)
@@ -192,16 +194,18 @@ def main() -> int:
     print(f"reference other percent: {ref_other:.3f}%")
     print(f"reference unique colors in center: {len(ref_color_set)}")
     print(f"center percent: {float(DEFAULT_CENTER_PERCENT):.2f}%")
-    print(f"min background percent: {float(args.min_background_percent):.3f}%")
+    print(f"target background color: {TARGET_BG_COLOR}")
+    print(f"target dot color: {TARGET_DOT_COLOR}")
+    print(f"min dot percent: {float(args.min_dot_percent):.3f}%")
     print(f"total files: {len(candidates)}")
     print(f"total similar files: {len(similar)}")
     print(f"total copied files: {copied}")
     print(f"output dir: {out_dir.resolve()}")
     print("")
-    print("filtered files (background=#1+#2 >= threshold):")
-    for p, dom_color, second_color, dominant_pct, second_pct, other_pct, background_pct in similar:
+    print("filtered files (exact target colors + dot% >= threshold):")
+    for p, dom_color, second_color, dominant_pct, second_pct, other_pct, _ in similar:
         print(
-            f"{p.name} | color1={dom_color} | color2={second_color} | p1={dominant_pct:.3f}% | p2={second_pct:.3f}% | background={background_pct:.3f}% | dots={other_pct:.3f}%"
+            f"{p.name} | color1={dom_color} | color2={second_color} | p1={dominant_pct:.3f}% | p2={second_pct:.3f}% | background={dominant_pct:.3f}% | dots={second_pct:.3f}% | other={other_pct:.3f}%"
         )
 
     return 0
