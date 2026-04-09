@@ -8,7 +8,7 @@ import shutil
 import matplotlib.image as mpimg
 import numpy as np
 
-DEFAULT_SCAN_DIR = Path(r"C:\Users\1\PycharmProjects\savvfastapi\HSM_detect_2clust")
+DEFAULT_SCAN_DIR = Path(r"C:\Users\1\PycharmProjects\savvfastapi\HSM_detect_2clust\test")
 DEFAULT_REFERENCE = "cube_25_02_09_38_02_cr10p_cheese_3_2cluster0p.png"
 DEFAULT_WILDCARD = "_2cluster0p"
 
@@ -126,18 +126,6 @@ def main() -> int:
         help="Center crop size in %% of image width/height (default: 30)",
     )
     parser.add_argument(
-        "--max-other-percent",
-        type=float,
-        default=5.0,
-        help="Keep files where all non-dominant colors are <= this value (default: 5.0)",
-    )
-    parser.add_argument(
-        "--min-dominant-percent",
-        type=float,
-        default=95.0,
-        help="Keep files where dominant color is >= this value (default: 95.0)",
-    )
-    parser.add_argument(
         "--max-second-percent",
         type=float,
         default=5.0,
@@ -209,11 +197,7 @@ def main() -> int:
     similar = [
         r
         for r in rows
-        if (
-            r[1] >= float(args.min_dominant_percent)
-            and r[2] <= float(args.max_second_percent)
-            and r[3] <= float(args.max_other_percent)
-        )
+        if r[2] <= float(args.max_second_percent)
     ]
     similar.sort(key=lambda x: (x[3], x[2], x[0].name.lower()))
 
@@ -232,9 +216,7 @@ def main() -> int:
     print(f"reference second percent: {ref_second:.3f}%")
     print(f"reference other percent: {ref_other:.3f}%")
     print(f"center percent: {float(args.center_percent):.2f}%")
-    print(f"min dominant percent: {float(args.min_dominant_percent):.3f}%")
     print(f"max second percent: {float(args.max_second_percent):.3f}%")
-    print(f"max other percent: {float(args.max_other_percent):.3f}%")
     print(f"total files: {len(candidates)}")
     print(f"total similar files: {len(similar)}")
     print(f"total copied files: {copied}")
