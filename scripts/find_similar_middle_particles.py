@@ -45,12 +45,12 @@ def center_crop(img: np.ndarray, center_percent: float) -> np.ndarray:
     return img[top : top + crop_h, left : left + crop_w]
 
 
-def particle_percent_in_center(
+def color_profile_in_center(
     png_path: Path,
     *,
     center_percent: float,
     quant_step: int,
-) -> float:
+) -> tuple[float, float, float]:
     img = load_rgb(png_path)
     crop = center_crop(img, center_percent=center_percent)
     pix = crop.reshape(-1, 3).astype(np.uint16)
@@ -61,12 +61,17 @@ def particle_percent_in_center(
     keys = (q[:, 0] << 16) | (q[:, 1] << 8) | q[:, 2]
     _, counts = np.unique(keys, return_counts=True)
     if counts.size == 0:
-        return 0.0
+        return 0.0, 0.0, 0.0
 
-    dominant = int(np.max(counts))
+    counts_sorted = np.sort(counts)[::-1]
+    dominant = int(counts_sorted[0])
+    second = int(counts_sorted[1]) if counts_sorted.size > 1 else 0
     total = int(np.sum(counts))
     other = max(0, total - dominant)
-    return (other / total) * 100.0
+    dominant_pct = (dominant / total) * 100.0
+    second_pct = (second / total) * 100.0
+    other_pct = (other / total) * 100.0
+    return dominant_pct, second_pct, other_pct
 
 
 def resolve_reference(scan_dir: Path, reference: str) -> Path:
@@ -124,7 +129,19 @@ def main() -> int:
         "--max-other-percent",
         type=float,
         default=5.0,
-        help="Keep files where other-color percent is <= this value (default: 5.0)",
+        help="Keep files where all non-dominant colors are <= this value (default: 5.0)",
+    )
+    parser.add_argument(
+        "--min-dominant-percent",
+        type=float,
+        default=95.0,
+        help="Keep files where dominant color is >= this value (default: 95.0)",
+    )
+    parser.add_argument(
+        "--max-second-percent",
+        type=float,
+        default=5.0,
+        help="Keep files where second color is <= this value (default: 5.0)",
     )
     parser.add_argument(
         "--quant-step",
@@ -170,41 +187,53 @@ def main() -> int:
         print("total similar files: 0")
         return 0
 
-    ref_percent = particle_percent_in_center(
+    ref_dominant, ref_second, ref_other = color_profile_in_center(
         reference_path,
         center_percent=args.center_percent,
         quant_step=args.quant_step,
     )
 
-    rows: list[tuple[Path, float]] = []
+    rows: list[tuple[Path, float, float, float]] = []
     total = len(candidates)
     step = max(1, int(args.progress_every))
     for idx, p in enumerate(candidates, start=1):
-        pct = particle_percent_in_center(
+        dominant_pct, second_pct, other_pct = color_profile_in_center(
             p,
             center_percent=args.center_percent,
             quant_step=args.quant_step,
         )
-        rows.append((p, pct))
+        rows.append((p, dominant_pct, second_pct, other_pct))
         if idx % step == 0 or idx == total:
             print(f"progress: {idx}/{total}")
 
-    similar = [r for r in rows if r[1] <= float(args.max_other_percent)]
-    similar.sort(key=lambda x: (x[1], x[0].name.lower()))
+    similar = [
+        r
+        for r in rows
+        if (
+            r[1] >= float(args.min_dominant_percent)
+            and r[2] <= float(args.max_second_percent)
+            and r[3] <= float(args.max_other_percent)
+        )
+    ]
+    similar.sort(key=lambda x: (x[3], x[2], x[0].name.lower()))
 
     out_subdir = Path(args.out_subdir)
     out_dir = out_subdir if out_subdir.is_absolute() else (scan_dir / out_subdir)
     out_dir.mkdir(parents=True, exist_ok=True)
     copied = 0
-    for p, _ in similar:
+    for p, _, _, _ in similar:
         shutil.copy2(p, out_dir / p.name)
         copied += 1
 
     print(f"scan dir: {scan_dir.resolve()}")
     print(f"wildcard: {args.wildcard}")
     print(f"reference: {reference_path.name}")
-    print(f"reference particle percent: {ref_percent:.3f}%")
+    print(f"reference dominant percent: {ref_dominant:.3f}%")
+    print(f"reference second percent: {ref_second:.3f}%")
+    print(f"reference other percent: {ref_other:.3f}%")
     print(f"center percent: {float(args.center_percent):.2f}%")
+    print(f"min dominant percent: {float(args.min_dominant_percent):.3f}%")
+    print(f"max second percent: {float(args.max_second_percent):.3f}%")
     print(f"max other percent: {float(args.max_other_percent):.3f}%")
     print(f"total files: {len(candidates)}")
     print(f"total similar files: {len(similar)}")
@@ -212,8 +241,10 @@ def main() -> int:
     print(f"output dir: {out_dir.resolve()}")
     print("")
     print("similar files:")
-    for p, pct in similar[: max(0, int(args.top))]:
-        print(f"{p.name} | percent={pct:.3f}%")
+    for p, dominant_pct, second_pct, other_pct in similar[: max(0, int(args.top))]:
+        print(
+            f"{p.name} | dominant={dominant_pct:.3f}% | second={second_pct:.3f}% | other={other_pct:.3f}%"
+        )
 
     return 0
 
