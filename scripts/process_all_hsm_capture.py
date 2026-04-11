@@ -35,7 +35,7 @@ def main() -> int:
     parser.add_argument(
         "--crop-percent",
         type=int,
-        default=1,
+        default=0,
         help="Per-side crop %% for cluster overlay (0 = full cluster map PNG).",
     )
     parser.add_argument(
