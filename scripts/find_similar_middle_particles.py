@@ -8,21 +8,16 @@ import shutil
 import matplotlib.image as mpimg
 import numpy as np
 
-DEFAULT_SCAN_DIR = Path(r"C:\Users\1\PycharmProjects\savvfastapi\HSM_detect_2clust")
-DEFAULT_REFERENCE = "cube_25_02_09_38_02_cr10p_cheese_3_2cluster0p.png"
+DEFAULT_SCAN_DIR = Path(r"C:\Users\1\PycharmProjects\savvfastapi\HSM_detect_2clust\test")
+DEFAULT_REFERENCE = "cube_27_03_18_11_16_cr10p_cheese_1_2cluster0p_1.png"
 DEFAULT_WILDCARD = "_2cluster0p"
-
-DEFAULT_CENTER_PERCENT = 30.0
 DEFAULT_OUT_SUBDIR = "filtered"
 DEFAULT_PROGRESS_EVERY = 100
-TARGET_BG_COLOR = (158, 218, 229)
-TARGET_DOT_COLOR = (31, 119, 180)
 
 
 def matches_wildcard(filename: str, wildcard: str) -> bool:
-    # If no glob symbols are provided, treat wildcard as "contains".
     pattern = wildcard
-    if not any(ch in wildcard for ch in "*?[]"):
+    if "*" not in wildcard:
         pattern = f"*{wildcard}*"
     return fnmatch(filename, pattern)
 
@@ -41,43 +36,58 @@ def load_rgb(path: Path) -> np.ndarray:
     return arr
 
 
-def center_crop(img: np.ndarray, center_percent: float) -> np.ndarray:
+def stats_background_and_other(img: np.ndarray) -> tuple[
+    tuple[int, int, int],
+    float,
+    float,
+    int,
+    float,
+    int,
+    int,
+]:
+    """
+    Background = single RGB with maximum pixel count.
+    Other = all pixels not equal to background (any number of separate colours).
+
+    Returns:
+        bg_color,
+        bg_percent,
+        other_percent,
+        n_other_colors (distinct RGB among non-background pixels),
+        other_centroid_offset_percent (non-bg centroid vs image centre, %% of half diagonal),
+        n_bg,
+        n_other,
+    """
     h, w = img.shape[:2]
-    p = max(1.0, min(float(center_percent), 100.0)) / 100.0
-    crop_h = max(1, int(round(h * p)))
-    crop_w = max(1, int(round(w * p)))
-    top = max(0, (h - crop_h) // 2)
-    left = max(0, (w - crop_w) // 2)
-    return img[top : top + crop_h, left : left + crop_w]
-
-
-def color_stats_in_center(
-    png_path: Path,
-    *,
-    center_percent: float,
-) -> tuple[tuple[int, int, int], tuple[int, int, int], float, float, float, set[tuple[int, int, int]]]:
-    img = load_rgb(png_path)
-    crop = center_crop(img, center_percent=center_percent)
-    pix = crop.reshape(-1, 3).astype(np.uint8)
+    total = h * w
+    pix = img.reshape(-1, 3).astype(np.uint8)
     colors, counts = np.unique(pix, axis=0, return_counts=True)
     if counts.size == 0:
-        empty = (0, 0, 0)
-        return empty, empty, 0.0, 0.0, 0.0, set()
+        return (0, 0, 0), 0.0, 0.0, 0, 0.0, 0, 0
 
-    order = np.argsort(counts)[::-1]
-    colors_sorted = colors[order]
-    counts_sorted = counts[order]
-    dominant_color = tuple(int(v) for v in colors_sorted[0])
-    second_color = tuple(int(v) for v in colors_sorted[1]) if counts_sorted.size > 1 else dominant_color
-    dominant = int(counts_sorted[0])
-    second = int(counts_sorted[1]) if counts_sorted.size > 1 else 0
-    total = int(np.sum(counts))
-    other = max(0, total - dominant - second)
-    dominant_pct = (dominant / total) * 100.0
-    second_pct = (second / total) * 100.0
-    other_pct = (other / total) * 100.0
-    color_set = {tuple(int(v) for v in row) for row in colors.tolist()}
-    return dominant_color, second_color, dominant_pct, second_pct, other_pct, color_set
+    i_max = int(np.argmax(counts))
+    bg = tuple(int(x) for x in colors[i_max])
+    n_bg = int(counts[i_max])
+    n_other = total - n_bg
+    bg_pct = (100.0 * n_bg / total) if total else 0.0
+    other_pct = (100.0 * n_other / total) if total else 0.0
+
+    bg_arr = np.array(bg, dtype=np.uint8)
+    mask_other = np.any(img != bg_arr, axis=2)
+    if not np.any(mask_other):
+        n_other_colors = 0
+        off_pct = 0.0
+    else:
+        other_pix = img[mask_other]
+        n_other_colors = len(np.unique(other_pix.reshape(-1, 3), axis=0))
+        ys, xs = np.where(mask_other)
+        mx, my = float(xs.mean()), float(ys.mean())
+        cx, cy = (w - 1) / 2.0, (h - 1) / 2.0
+        dist = float(np.hypot(mx - cx, my - cy))
+        half_diag = 0.5 * float(np.hypot(w, h))
+        off_pct = (100.0 * dist / half_diag) if half_diag > 0 else 0.0
+
+    return bg, bg_pct, other_pct, n_other_colors, off_pct, n_bg, n_other
 
 
 def resolve_reference(scan_dir: Path, reference: str) -> Path:
@@ -106,18 +116,31 @@ def list_candidate_pngs(scan_dir: Path, wildcard: str) -> list[Path]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Filter by exact target colors and minimum dot percent."
+        description=(
+            "Background = one colour (max pixels). Other = all non-background pixels; "
+            "report how many distinct other colours. Filter by other %% and centroid offset."
+        )
     )
-    # Single user parameter.
     parser.add_argument(
-        "--min-dot-percent",
+        "--max-other-percent",
         type=float,
-        default=5.0,
-        help="Keep files where dot color percent is >= this value (default: 5.0)",
+        default=10.0,
+        help="Max %% of pixels that are not background (not the max-count colour).",
+    )
+    parser.add_argument(
+        "--max-other-offset-percent",
+        type=float,
+        default=35.0,
+        help="Max offset of non-background centroid from image centre, %% of half diagonal.",
+    )
+    parser.add_argument(
+        "--scan-dir",
+        default=str(DEFAULT_SCAN_DIR),
+        help=f"Directory to scan for PNGs (default: {DEFAULT_SCAN_DIR})",
     )
     args = parser.parse_args()
 
-    scan_dir = DEFAULT_SCAN_DIR
+    scan_dir = Path(args.scan_dir)
     if not scan_dir.is_dir():
         print(f"Scan directory not found: {scan_dir}")
         return 1
@@ -128,84 +151,91 @@ def main() -> int:
         print(str(exc))
         return 1
 
+    ref_img = load_rgb(reference_path)
+    rh, rw = ref_img.shape[:2]
+    (
+        ref_bg,
+        ref_bg_pct,
+        ref_other_pct,
+        ref_n_other_colors,
+        ref_off,
+        ref_n_bg,
+        ref_n_other,
+    ) = stats_background_and_other(ref_img)
+    uniq_all = len(np.unique(ref_img.reshape(-1, 3), axis=0))
+
     candidates = list_candidate_pngs(scan_dir, DEFAULT_WILDCARD)
     if not candidates:
         print("No candidate PNG files found with current wildcard.")
         print(f"wildcard: {DEFAULT_WILDCARD}")
-        print("total files: 0")
-        print("total similar files: 0")
         return 0
 
-    (
-        ref_dom_color,
-        ref_second_color,
-        ref_dominant,
-        ref_second,
-        ref_other,
-        ref_color_set,
-    ) = color_stats_in_center(
-        reference_path,
-        center_percent=DEFAULT_CENTER_PERCENT,
-    )
-    rows: list[tuple[Path, tuple[int, int, int], tuple[int, int, int], float, float, float, bool]] = []
+    rows: list[
+        tuple[
+            Path,
+            tuple[int, int, int],
+            float,
+            float,
+            int,
+            float,
+            int,
+            int,
+        ]
+    ] = []
     total = len(candidates)
     step = max(1, int(DEFAULT_PROGRESS_EVERY))
     for idx, p in enumerate(candidates, start=1):
-        (
-            dom_color,
-            second_color,
-            dominant_pct,
-            second_pct,
-            other_pct,
-            color_set,
-        ) = color_stats_in_center(
-            p,
-            center_percent=DEFAULT_CENTER_PERCENT,
-        )
-        _ = color_set
-        target_colors_ok = (dom_color == TARGET_BG_COLOR and second_color == TARGET_DOT_COLOR)
-        rows.append((p, dom_color, second_color, dominant_pct, second_pct, other_pct, target_colors_ok))
+        img = load_rgb(p)
+        bg, bg_pct, o_pct, n_oc, off_pct, n_bg, n_o = stats_background_and_other(img)
+        rows.append((p, bg, bg_pct, o_pct, n_oc, off_pct, n_bg, n_o))
         if idx % step == 0 or idx == total:
             print(f"progress: {idx}/{total}")
 
     similar = [
         r
         for r in rows
-        if r[6] and r[4] >= float(args.min_dot_percent)
+        if r[3] <= float(args.max_other_percent)
+        and r[5] <= float(args.max_other_offset_percent)
     ]
-    similar.sort(key=lambda x: (-x[4], x[0].name.lower()))
+    similar.sort(key=lambda x: (x[3], x[5], x[0].name.lower()))
 
-    out_subdir = Path(DEFAULT_OUT_SUBDIR)
-    out_dir = out_subdir if out_subdir.is_absolute() else (scan_dir / out_subdir)
+    out_dir = Path(DEFAULT_OUT_SUBDIR)
+    if not out_dir.is_absolute():
+        out_dir = scan_dir / out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
     copied = 0
-    for p, _, _, _, _, _, _ in similar:
+    for p, _, _, _, _, _, _, _ in similar:
         shutil.copy2(p, out_dir / p.name)
         copied += 1
 
+    print("=== reference image ===")
+    print(f"path: {reference_path.resolve()}")
+    print(f"size: {rw}x{rh} pixels")
+    print(f"unique RGB colours (full image): {uniq_all}")
+    print("background: one colour with max pixel count")
+    print(f"  RGB: {ref_bg}")
+    print(f"  pixels: {ref_n_bg}  ({ref_bg_pct:.4f}% of image)")
+    print("other: all pixels not equal to background (separate colours counted below)")
+    print(f"  pixels: {ref_n_other}  ({ref_other_pct:.4f}% of image)")
+    print(f"  distinct other colours: {ref_n_other_colors}")
+    print(
+        f"  centroid offset from image centre (non-background mass): {ref_off:.4f}% of half diagonal"
+    )
+    print("")
     print(f"scan dir: {scan_dir.resolve()}")
     print(f"wildcard: {DEFAULT_WILDCARD}")
-    print(f"reference: {reference_path.name}")
-    print(f"reference dominant color: {ref_dom_color}")
-    print(f"reference second color: {ref_second_color}")
-    print(f"reference dominant percent: {ref_dominant:.3f}%")
-    print(f"reference second percent: {ref_second:.3f}%")
-    print(f"reference background percent (#1+#2): {(ref_dominant + ref_second):.3f}%")
-    print(f"reference other percent: {ref_other:.3f}%")
-    print(f"reference unique colors in center: {len(ref_color_set)}")
-    print(f"center percent: {float(DEFAULT_CENTER_PERCENT):.2f}%")
-    print(f"target background color: {TARGET_BG_COLOR}")
-    print(f"target dot color: {TARGET_DOT_COLOR}")
-    print(f"min dot percent: {float(args.min_dot_percent):.3f}%")
+    print(f"max other %%: {float(args.max_other_percent):.4f}")
+    print(f"max other centroid offset %%: {float(args.max_other_offset_percent):.4f}")
     print(f"total files: {len(candidates)}")
     print(f"total similar files: {len(similar)}")
     print(f"total copied files: {copied}")
     print(f"output dir: {out_dir.resolve()}")
     print("")
-    print("filtered files (exact target colors + dot% >= threshold):")
-    for p, dom_color, second_color, dominant_pct, second_pct, other_pct, _ in similar:
+    print("filtered files:")
+    for p, bg, bg_pct, o_pct, n_oc, off_pct, n_bg, n_o in similar:
         print(
-            f"{p.name} | color1={dom_color} | color2={second_color} | p1={dominant_pct:.3f}% | p2={second_pct:.3f}% | background={dominant_pct:.3f}% | dots={second_pct:.3f}% | other={other_pct:.3f}%"
+            f"{p.name} | bg={bg} bg%%={bg_pct:.4f}% | other%%={o_pct:.4f}% | "
+            f"other_clrs={n_oc} | off%%={off_pct:.4f}% | n_bg={n_bg} n_other={n_o}"
         )
 
     return 0
