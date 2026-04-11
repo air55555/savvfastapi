@@ -27,9 +27,10 @@ def unique_target_path(target_dir: Path, src_name: str) -> Path:
 
 
 def matches_wildcard(filename: str, wildcard: str) -> bool:
-	# If no glob symbols are provided, treat wildcard as "contains".
+	# Substring match: wrap with * unless the pattern already contains * (then use as-is).
+	# So e.g. _cr10p_cheese_?_2cluster0p becomes *_cr10p_cheese_?_2cluster0p* and ? matches one char.
 	pattern = wildcard
-	if not any(ch in wildcard for ch in "*?[]"):
+	if "*" not in wildcard:
 		pattern = f"*{wildcard}*"
 	return fnmatch(filename, pattern)
 
@@ -55,8 +56,8 @@ def main() -> int:
 	)
 	parser.add_argument(
 		"--wildcard",
-		default="_cr10p_ch",
-		help='Only copy files matching this wildcard (default: "_cr10p_ch")',
+		default="_cr10p_cheese_?_2cluster0p",
+		help='Filename fnmatch; ? = one char. Default matches *_cr10p_cheese_?_2cluster0p*',
 	)
 	args = parser.parse_args()
 
