@@ -16,6 +16,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.colors
+import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 import logging
 import numpy as np
@@ -193,18 +194,38 @@ def run_clustering(
     return labels
 
 
+def _discrete_label_rgb(labels: np.ndarray) -> np.ndarray:
+    """
+    Map each cluster label to one solid RGB (tab20). Output is HxWx3 uint8 —
+    only len(unique(labels)) distinct colours, no interpolation.
+    """
+    uniq = np.unique(labels)
+    n = int(uniq.size)
+    cmap = plt.get_cmap("tab20")
+    palette = np.zeros((n, 3), dtype=np.uint8)
+    for i in range(n):
+        rgba = cmap(i / max(n - 1, 1)) if n > 1 else cmap(0.0)
+        palette[i] = [int(round(rgba[j] * 255.0)) for j in range(3)]
+
+    idx = np.searchsorted(uniq, labels)
+    return palette[idx]
+
+
+def _save_plain_rgb_png(rgb_u8: np.ndarray, output: Path) -> None:
+    """Write RGB uint8 array as PNG without matplotlib figure resampling."""
+    output.parent.mkdir(parents=True, exist_ok=True)
+    if rgb_u8.dtype != np.uint8:
+        rgb_u8 = np.clip(rgb_u8, 0, 255).astype(np.uint8)
+    mpimg.imsave(str(output), rgb_u8, format="png", pil_kwargs={"compress_level": 1})
+
+
 def save_cluster_image(labels: np.ndarray, output: Path) -> None:
     unique, counts = np.unique(labels, return_counts=True)
     class_counts = dict(zip(unique.tolist(), counts.tolist()))
     logger.info("Class pixel counts: %s", class_counts)
 
-    fig = plt.figure(figsize=(8, 4.5), dpi=120)
-    plt.imshow(labels, cmap="tab20")
-    plt.axis("off")
-    plt.tight_layout()
-    output.parent.mkdir(parents=True, exist_ok=True)
-    plt.savefig(output, bbox_inches="tight", pad_inches=0.05)
-    plt.close(fig)
+    rgb = _discrete_label_rgb(labels)
+    _save_plain_rgb_png(rgb, output)
 
 
 def save_crop_overlay(
@@ -219,8 +240,9 @@ def save_crop_overlay(
     mask = np.zeros((h, w), dtype=bool)
     mask[top:bottom, left:right] = True
 
-    cluster_rgb = plt.get_cmap("tab20")(labels.astype(float))[:, :, :3]
-    img = np.array(base_rgb, copy=True)
+    cluster_rgb = _discrete_label_rgb(labels)
+    base_u8 = (np.clip(base_rgb, 0.0, 1.0) * 255.0).astype(np.uint8)
+    img = base_u8.copy()
     img[mask] = cluster_rgb[mask]
 
     unique, counts = np.unique(labels, return_counts=True)
@@ -230,13 +252,7 @@ def save_crop_overlay(
         top, bottom, left, right, abs(int(crop_percent)),
     )
 
-    fig = plt.figure(figsize=(8, 4.5), dpi=120)
-    plt.imshow(img)
-    plt.axis("off")
-    plt.tight_layout()
-    output.parent.mkdir(parents=True, exist_ok=True)
-    plt.savefig(output, bbox_inches="tight", pad_inches=0.05)
-    plt.close(fig)
+    _save_plain_rgb_png(img, output)
 
 
 def run_pipeline(
