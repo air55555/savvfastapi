@@ -23,6 +23,7 @@ from db import (
 	fetch_get_camera_res_responses,
 	fetch_latest_palletes_scan_by_sscc,
 	fetch_palletes_scan_by_sscc,
+	fetch_palletes_scan_analyzed,
 )
 from version import get_version_info
 
@@ -156,6 +157,31 @@ class GetCameraResResponse(BaseModel):
 	Status: Literal["PalletResult"]
 	Count: int
 	Records: List[GetCameraResRecord]
+
+
+class GetAllAnalyzedRecord(BaseModel):
+	SSCC: str
+	Msg: str
+
+
+class GetAllAnalyzedResponse(BaseModel):
+	Count: int
+	Records: List[GetAllAnalyzedRecord]
+
+
+@app.get("/api/getanalyzed", response_model=GetAllAnalyzedResponse)
+def get_analyzed(limit: int = 500, offset: int = 0) -> GetAllAnalyzedResponse:
+	# Hard safety caps: DB can contain thousands+ rows.
+	if limit < 1:
+		limit = 1
+	if limit > 5000:
+		limit = 5000
+	if offset < 0:
+		offset = 0
+
+	rows = fetch_palletes_scan_analyzed(limit=limit, offset=offset)
+	records = [GetAllAnalyzedRecord(SSCC=row["SSCC"], Msg=_fix_mojibake_text(row["Msg"])) for row in rows]
+	return GetAllAnalyzedResponse(Count=len(records), Records=records)
 
 
 @app.post("/api/getcamerares", response_model=GetCameraResResponse)

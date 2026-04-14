@@ -347,6 +347,27 @@ def fetch_palletes_scan_by_sscc(sscc: str, limit: int = 50):
 	finally:
 		conn.close()
 
+
+def fetch_palletes_scan_analyzed(limit: int = 500, offset: int = 0):
+	"""
+	Return newest analyzed scan rows (SSCC + Msg only) with pagination.
+	"""
+	conn = get_connection()
+	try:
+		cur = conn.execute(
+			"""
+			SELECT SSCC, Msg
+			FROM palletes_scan
+			WHERE Status = ?
+			ORDER BY id DESC
+			LIMIT ? OFFSET ?
+			""",
+			("analyzed", limit, offset),
+		)
+		return [dict(row) for row in cur.fetchall()]
+	finally:
+		conn.close()
+
 def fetch_set_pallet_requests(limit: int = 100):
 	conn = get_connection()
 	try:

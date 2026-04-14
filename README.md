@@ -45,6 +45,18 @@ curl -s -X POST http://localhost:8000/api/getcamerares \
   }'
 ```
 
+Get all analyzed records (paginated):
+
+- Status filter: `Status == "analyzed"`
+- Returns only: `SSCC`, `Msg`
+- Query params:
+  - `limit` (default `500`, max `5000`)
+  - `offset` (default `0`)
+
+```bash
+curl -s "http://localhost:8000/api/getanalyzed?limit=500&offset=0"
+```
+
 ### Camera Result Testing with Different Database Records
 
 The API includes pre-populated test data in the `palletes_scan` table. Here are different test cases:
