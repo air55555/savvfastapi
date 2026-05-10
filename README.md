@@ -57,6 +57,17 @@ Get all analyzed records (paginated):
 curl -s "http://localhost:8000/api/getanalyzed?limit=500&offset=0"
 ```
 
+PowerShell:
+```powershell
+curl -Method GET "http://localhost:8000/api/getanalyzed?limit=500&offset=0"
+```
+
+PowerShell (pretty JSON):
+```powershell
+$r = Invoke-RestMethod -Method Get -Uri "http://localhost:8000/api/getanalyzed?limit=500&offset=0"
+$r | ConvertTo-Json -Depth 20
+```
+
 ### Camera Result Testing with Different Database Records
 
 The API includes pre-populated test data in the `palletes_scan` table. Here are different test cases:
