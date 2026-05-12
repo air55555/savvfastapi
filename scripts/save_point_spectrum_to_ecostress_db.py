@@ -229,7 +229,7 @@ def save_two_region_averages(
     bg_sample_id, bg_spectrum_id = _write_spectrum_to_db(
         db_path=db_path,
         name=bg_name,
-        description=f"cube={hdr_path.name}; map={map_path.name}; region=background",
+        description=f"cube={hdr_path.name}; map={map_path.name}; region=background;num = {bg_count}",
         measurement="region-average",
         wavelengths=wavelengths,
         spectrum=bg_avg,
@@ -239,7 +239,7 @@ def save_two_region_averages(
     defect_sample_id, defect_spectrum_id = _write_spectrum_to_db(
         db_path=db_path,
         name=defect_name,
-        description=f"cube={hdr_path.name}; map={map_path.name}; region=defects",
+        description=f"cube={hdr_path.name}; map={map_path.name}; region=defects; num = {defect_count}",
         measurement="region-average",
         wavelengths=wavelengths,
         spectrum=defect_avg,
