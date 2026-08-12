@@ -10,6 +10,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # Comma-separated list of directories searched in order (first match wins).
 _DEFAULT_SEARCH_ROOTS = [
+	"D:\HSM_CAPTURE_ANALYSIS\Defect_Cheese",
 	_PROJECT_ROOT / "HSM_CAPTURE",
 	_PROJECT_ROOT / "HSM_detect_2clust",
 ]
