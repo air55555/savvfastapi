@@ -88,8 +88,23 @@ def get_palletes_scan_by_cubename(cubename: str) -> Optional[dict]:
 	return None
 
 
+def _run_ingest_hsm_capture() -> None:
+	_scripts = Path(__file__).resolve().parent
+	if str(_scripts) not in sys.path:
+		sys.path.insert(0, str(_scripts))
+	import ingest_hsm_capture  # noqa: E402
+
+	argv = sys.argv
+	try:
+		sys.argv = ["ingest_hsm_capture"]
+		ingest_hsm_capture.main()
+	finally:
+		sys.argv = argv
+
+
 def get_sscc_by_cubename(cubename: str) -> Optional[str]:
 	"""Return SSCC for a cube / HDR name, or None if not found."""
+	_run_ingest_hsm_capture()
 	row = get_palletes_scan_by_cubename(cubename)
 	return str(row["SSCC"]) if row else None
 
