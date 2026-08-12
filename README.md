@@ -295,6 +295,7 @@ Test with your own PNG, put it in HSM_CAPTURE or HSM_detect_2clust and call:
 
 
 curl "http://127.0.0.1:8000/api/get_file?filename=YOUR_FILE.png" -o downloaded.png
+curl "http://127.0.0.1:8000/api/get_file?filename=cube_11_08_11_20_24_cheese_2_detect.png" -o downloaded.png
 When you make changes to your project, the server will automatically reload.
 
 ## Deploying to Vercel
