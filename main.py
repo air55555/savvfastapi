@@ -1,5 +1,5 @@
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 from typing import Literal
 from typing import List
@@ -9,6 +9,11 @@ import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 import json
+import sys
+
+_SCRIPTS_DIR = Path(__file__).resolve().parent / "scripts"
+if str(_SCRIPTS_DIR) not in sys.path:
+	sys.path.insert(0, str(_SCRIPTS_DIR))
 
 from db import (
 	init_db, 
@@ -26,6 +31,7 @@ from db import (
 	fetch_palletes_scan_analyzed,
 )
 from version import get_version_info
+from file_search import find_png_file, validate_png_filename
 
 
 def _setup_request_logger() -> logging.Logger:
@@ -290,6 +296,42 @@ async def request_logger(request: Request, call_next):
 		# Avoid breaking requests due to logging failure
 		pass
 	return response
+
+
+@app.get("/api/get_file")
+def get_file(
+	filename: str = Query(..., description="PNG filename (basename only, not an absolute path)"),
+):
+	"""
+	Return a PNG file from the first configured search root that contains it.
+
+	File metadata is returned in response headers:
+	- X-File-Name, X-File-Size, X-File-Modified, X-File-Created (when available), X-Search-Root
+	"""
+	try:
+		validate_png_filename(filename)
+	except ValueError as exc:
+		raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+	found = find_png_file(filename)
+	if found is None:
+		raise HTTPException(status_code=404, detail=f"PNG file not found: {filename}")
+
+	headers = {
+		"X-File-Name": found.path.name,
+		"X-File-Size": str(found.size_bytes),
+		"X-File-Modified": found.modified_at.isoformat(),
+		"X-Search-Root": str(found.root),
+	}
+	if found.created_at is not None:
+		headers["X-File-Created"] = found.created_at.isoformat()
+
+	return FileResponse(
+		path=found.path,
+		media_type="image/png",
+		filename=found.path.name,
+		headers=headers,
+	)
 
 
 @app.get("/api/logs")
