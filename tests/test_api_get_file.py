@@ -131,6 +131,17 @@ class TestSearchRootConfiguration:
 		assert found is not None
 		assert found.root == root_b.resolve()
 
+	def test_default_search_roots_are_path_objects(self):
+		file_search.reset_search_roots()
+		roots = file_search.get_search_roots()
+		assert len(roots) >= 1
+		assert all(isinstance(root, Path) for root in roots)
+
+	def test_find_png_file_does_not_crash_with_default_roots(self):
+		file_search.reset_search_roots()
+		# Should return None (not found) or a match — never raise TypeError.
+		result = file_search.find_png_file("cube_11_08_11_20_24_cheese_2_detect.png")
+		assert result is None or isinstance(result, file_search.FoundFile)
 
 # ---------------------------------------------------------------------------
 # API integration tests: GET /api/get_file

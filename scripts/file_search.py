@@ -10,7 +10,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # Comma-separated list of directories searched in order (first match wins).
 _DEFAULT_SEARCH_ROOTS = [
-	"D:\HSM_CAPTURE_ANALYSIS\Defect_Cheese",
+	Path(r"D:\HSM_CAPTURE_ANALYSIS\Defect_Cheese"),
 	_PROJECT_ROOT / "HSM_CAPTURE",
 	_PROJECT_ROOT / "HSM_detect_2clust",
 ]
@@ -32,14 +32,14 @@ class FoundFile:
 def _parse_roots_from_env() -> list[Path]:
 	raw = os.getenv("SAVVFASTAPI_FILE_SEARCH_ROOTS", "").strip()
 	if not raw:
-		return list(_DEFAULT_SEARCH_ROOTS)
+		return [Path(root) for root in _DEFAULT_SEARCH_ROOTS]
 	return [Path(part.strip()) for part in raw.split(",") if part.strip()]
 
 
 def get_search_roots() -> list[Path]:
 	global _search_roots
 	if _search_roots is None:
-		_search_roots = _parse_roots_from_env()
+		_search_roots = [Path(root) for root in _parse_roots_from_env()]
 	return list(_search_roots)
 
 
