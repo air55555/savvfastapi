@@ -10,6 +10,11 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 import json
 import sys
+import platform
+from datetime import datetime, timedelta
+import shutil
+
+from utils import get_free_disk_space, count_scanned_dirs
 
 _SCRIPTS_DIR = Path(__file__).resolve().parent / "scripts"
 if str(_SCRIPTS_DIR) not in sys.path:
@@ -125,6 +130,18 @@ def on_startup():
 @app.get("/api/health")
 def health_check():
     version_info = get_version_info()
+
+    # Get free disk space for C:, D:, and S: drives
+    drives_info = {}
+    for drive in ["C", "D", "S"]:
+        disk_info = get_free_disk_space(drive, timeout=5)
+        drives_info[drive] = disk_info if disk_info else {"available": False, "error": "Drive not accessible or does not exist"}
+
+    # Count scanned directories > 500MB
+    # HSM_CAPTURE_ROOT is typically Path(r"D:\HSM_CAPTURE") based on ingest_hsm_capture.py
+    HSM_CAPTURE_ROOT = Path(r"D:\HSM_CAPTURE") if platform.system() == "Windows" else Path("/mnt/HSM_CAPTURE")
+    scanned_counts = count_scanned_dirs(str(HSM_CAPTURE_ROOT), min_size_mb=500)
+
     return {
         "status": "healthy",
         "version": version_info["version"],
@@ -132,7 +149,13 @@ def health_check():
         "commit_count": version_info["commit_count"],
         "build_date": version_info["build_date"],
         "git": version_info["git"],
-        "api_name": version_info["api_name"]
+        "api_name": version_info["api_name"],
+        "free_disk_space": drives_info,
+        "scanned_dirs": {
+            **scanned_counts,
+            "min_size_mb": 500,
+            "threshold_mb": 500
+        }
     }
 
 @app.post("/api/setpallet", response_model=SetPalletResponse)
